@@ -1,0 +1,2745 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agroforestri Aren - Project Management System (RBAC + Auth)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Exporting to Real Excel (.xlsx) Files -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#16a34a',
+                            600: '#15803d',
+                            700: '#166534',
+                            800: '#14532d',
+                            900: '#064e3b',
+                        },
+                        corporate: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            800: '#1e293b',
+                            900: '#0f172a'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .app-viewport { height: 100vh; height: 100dvh; }
+        .app-main { min-height: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); overflow-y: auto; }
+        .modal-backdrop > div { max-height: calc(100vh - 2rem); overflow-y: auto; }
+        @media (max-width: 767px) {
+            .app-main { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+            .modal-backdrop > div { max-height: calc(100dvh - 2rem); }
+            #chat-form { flex-wrap: wrap; }
+            #chat-sender-select { max-width: 42%; }
+            #chat-form button { flex: 0 0 auto; padding-left: .75rem; padding-right: .75rem; }
+        }
+    </style>
+</head>
+<body class="app-viewport bg-slate-50 text-slate-800 antialiased flex overflow-hidden">
+
+    <!-- Login Screen with Enhanced Password Authentication & RBAC -->
+    <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+            <!-- Header Login -->
+            <div class="p-6 bg-slate-900 text-white text-center border-b border-slate-800">
+                <div class="w-14 h-14 mx-auto rounded-xl bg-emerald-600 flex items-center justify-center text-2xl shadow-lg shadow-emerald-900/50">
+                    <i class="fa-solid fa-tree"></i>
+                </div>
+                <h1 class="font-bold text-xl mt-3">Agroforestri Aren</h1>
+                <p class="text-xs text-emerald-400 mt-1 font-medium">Portal Autentikasi Pengguna & Hak Akses (RBAC)</p>
+            </div>
+
+            <!-- Form Login -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="p-6 space-y-4">
+                <div>
+                    <label for="login-user" class="block text-xs font-semibold text-slate-700 mb-1">
+                        Pilih Anggota SDM Terdaftar
+                    </label>
+                    <div class="relative">
+                        <select id="login-user" required onchange="updateLoginRoleInfo()" class="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                            <option value="">-- Pilih Anggota Tim SDM --</option>
+                        </select>
+                        <i class="fa-solid fa-user-gear absolute left-3 top-3.5 text-slate-400 text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- Password Field -->
+                <div>
+                    <label for="login-password" class="block text-xs font-semibold text-slate-700 mb-1">
+                        Kata Sandi / Password
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="login-password" required placeholder="Masukkan kata sandi..." class="w-full pl-9 pr-10 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                        <i class="fa-solid fa-key absolute left-3 top-3.5 text-slate-400 text-xs"></i>
+                        <button type="button" onclick="togglePasswordVisibility('login-password', 'toggle-login-pass-icon')" class="absolute right-3 top-3 text-slate-400 hover:text-slate-600 text-xs" title="Tampilkan/Sembunyikan">
+                            <i id="toggle-login-pass-icon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">Default kata sandi akun bawaan: <code class="bg-slate-100 px-1 py-0.5 rounded text-emerald-700 font-mono">123456</code></p>
+                </div>
+
+                <!-- Info Hak Akses (RBAC Dynamic Badge) -->
+                <div id="login-role-card" class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl transition-all">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Jabatan & Matriks Akses</span>
+                        <span id="rbac-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Non-Aktif</span>
+                    </div>
+                    <p id="login-user-role" class="text-sm font-bold text-slate-800">Pilih anggota SDM di atas</p>
+                    
+                    <!-- Detail Ringkasan Izin -->
+                    <div id="login-permissions-list" class="mt-2 text-[11px] text-slate-600 space-y-1 border-t border-slate-200 pt-2 hidden">
+                        <!-- Populated dynamically based on selected role -->
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 px-1">
+                    <span class="flex items-center gap-1"><i class="fa-solid fa-shield-halved text-emerald-600"></i> RBAC Security Enforced</span>
+                    <span class="text-[11px] text-slate-400">Ver 2.6</span>
+                </div>
+
+                <button id="login-submit" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg text-sm transition-all shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span>Masuk ke Sistem</span>
+                </button>
+
+                <p id="login-empty-message" class="hidden text-xs text-center text-amber-700 font-medium">Belum ada data anggota SDM. Silakan muat ulang atau gunakan data bawaan.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between hidden md:flex md:static z-30 md:z-20 shadow-xl shrink-0">
+        <div>
+            <!-- Logo Section -->
+            <div class="p-5 border-b border-slate-800 flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-900/50">
+                    <i class="fa-solid font-bold fa-tree"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-white text-base leading-tight">Agroforestri Aren</h1>
+                    <p class="text-xs text-emerald-400 font-medium">Enterprise Management</p>
+                </div>
+            </div>
+
+            <!-- Navigation Links (Dibatasi RBAC) -->
+            <nav class="mt-6 px-3 space-y-1">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all bg-emerald-600 text-white shadow-md shadow-emerald-900/30">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                    <span>Dashboard & Progres</span>
+                </button>
+                <button onclick="switchTab('tasks')" id="nav-tasks" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all hover:bg-slate-800 hover:text-white">
+                    <i class="fa-solid fa-list-check w-5 text-center"></i>
+                    <span>Manajemen Tugas</span>
+                </button>
+                <button onclick="switchTab('collaboration')" id="nav-collaboration" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all hover:bg-slate-800 hover:text-white">
+                    <i class="fa-solid fa-comments w-5 text-center"></i>
+                    <span>Kolaborasi & Chat</span>
+                </button>
+                <button onclick="switchTab('knowledge')" id="nav-knowledge" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all hover:bg-slate-800 hover:text-white">
+                    <i class="fa-solid fa-book-open w-5 text-center"></i>
+                    <span>Knowledge & Dokumen</span>
+                </button>
+                <button onclick="switchTab('budget')" id="nav-budget" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all hover:bg-slate-800 hover:text-white">
+                    <i class="fa-solid fa-wallet w-5 text-center"></i>
+                    <span>Anggaran & SDM</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Project Status Summary Badge -->
+        <div class="p-4 m-3 bg-slate-800/80 rounded-xl border border-slate-700">
+            <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-400">Total Progres Proyek</span>
+                <span id="sidebar-progress-text" class="text-emerald-400 font-bold">0%</span>
+            </div>
+            <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                <div id="sidebar-progress-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="px-4 pb-4 text-center">
+            <p class="text-[11px] leading-relaxed text-slate-400">Platform untuk mengelola tugas, kolaborasi, dokumen, anggaran, dan progres proyek Agroforestri Aren.</p>
+            <p class="text-[10px] text-slate-500 mt-2">&copy; 2026 Pengembang SIM Proyek Agroforestri Aren. Hak cipta dilindungi.</p>
+        </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-white border-b border-slate-200 min-h-16 h-auto flex flex-wrap items-center justify-between gap-y-2 px-3 py-2 md:px-6 z-10 shrink-0">
+            <div class="flex items-center space-x-3 md:space-x-4 min-w-0 flex-1">
+                <button class="md:hidden text-slate-600 hover:text-slate-900" onclick="toggleMobileMenu()">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                <h2 id="page-title" class="text-base md:text-xl font-bold text-slate-800 truncate">Dashboard & Progres Real-Time</h2>
+            </div>
+            <div class="flex items-center gap-2 md:gap-4 ml-auto">
+                <!-- Overdue Alert Badge Indicator -->
+                <button onclick="checkAndShowOverdueAlerts(true)" id="overdue-badge-btn" class="relative hidden text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold py-2 px-3 rounded-lg transition-colors border border-amber-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-600 animate-pulse"></i>
+                    <span>Peringatan Deadline</span>
+                    <span id="overdue-count-badge" class="ml-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                </button>
+                
+                <button id="btn-backup-data" onclick="exportDataJSON()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-2 md:px-3 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-300">
+                    <i class="fa-solid fa-download"></i> Backup Data
+                </button>
+                <button id="btn-sync-database" onclick="configureDatabaseSync()" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium py-2 px-2 md:px-3 rounded-lg transition-colors flex items-center gap-1.5 border border-emerald-300" title="Konfigurasi database online dan sinkronisasi">
+                    <i class="fa-solid fa-database"></i> Database
+                </button>
+
+                <!-- Current Logged In SDM Badge & Profile Actions -->
+                <div class="flex items-center space-x-2 md:space-x-3 border-l border-slate-200 pl-2 md:pl-4">
+                    <div id="current-user-avatar" class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-sm border border-emerald-300">
+                        SDM
+                    </div>
+                    <div class="hidden sm:block max-w-[180px]">
+                        <p id="current-user-name" class="text-sm font-semibold text-slate-800 leading-none truncate">Anggota Tim</p>
+                        <p id="current-user-role" class="text-xs text-slate-500 mt-1 truncate">Tim Agroforestri Aren</p>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button type="button" onclick="openChangePasswordModal()" class="text-xs text-slate-500 hover:text-emerald-600 transition-colors p-1.5 rounded-md hover:bg-slate-100" title="Ubah Kata Sandi Saya" aria-label="Ubah Kata Sandi">
+                            <i class="fa-solid fa-key text-base"></i>
+                        </button>
+                        <button type="button" onclick="logoutUser()" class="text-xs text-slate-500 hover:text-red-600 transition-colors p-1.5 rounded-md hover:bg-slate-100" title="Keluar / Ganti Pengguna" aria-label="Keluar">
+                            <i class="fa-solid fa-right-from-bracket text-base"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-main flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
+            
+            <!-- Dashboard Section -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Overdue System Banner Alert -->
+                <div id="overdue-banner-alert" class="hidden p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start space-x-3">
+                            <div class="p-2 bg-red-100 text-red-600 rounded-lg">
+                                <i class="fa-solid fa-bell text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-red-900 text-sm">Peringatan Deadline Terlewati!</h4>
+                                <p id="overdue-banner-text" class="text-xs text-red-700 mt-0.5"></p>
+                            </div>
+                        </div>
+                        <button onclick="switchTab('tasks')" class="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+                            Tinjau Tugas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Top Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Tugas</p>
+                            <h3 id="stat-total-tasks" class="text-2xl font-bold text-slate-800 mt-1">0</h3>
+                            <p class="text-xs text-emerald-600 font-medium mt-1"><i class="fa-solid fa-list-check"></i> Seluruh Modul</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-tasks"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selesai</p>
+                            <h3 id="stat-completed-tasks" class="text-2xl font-bold text-slate-800 mt-1">0</h3>
+                            <p id="stat-completed-percent" class="text-xs text-emerald-600 font-medium mt-1">0% Tercapai</p>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Cash Flow</p>
+                            <h3 id="stat-budget-spent" class="text-2xl font-bold text-slate-800 mt-1">Rp 0</h3>
+                            <p id="stat-budget-total" class="text-xs text-slate-500 font-medium mt-1">Pemasukan vs Pengeluaran</p>
+                        </div>
+                        <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Anggota Tim</p>
+                            <h3 id="stat-team-count" class="text-2xl font-bold text-slate-800 mt-1">0</h3>
+                            <p class="text-xs text-indigo-600 font-medium mt-1"><i class="fa-solid fa-users"></i> Aktif di Lapangan</p>
+                        </div>
+                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-user-group"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Task Status Chart -->
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-1">
+                        <h4 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-emerald-600"></i> Status Tugas Proyek
+                        </h4>
+                        <div class="relative h-64 flex items-center justify-center">
+                            <canvas id="taskStatusChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Cash Flow Chart -->
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
+                        <h4 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-emerald-600"></i> Ringkasan Cash Flow (Pemasukan vs Pengeluaran)
+                        </h4>
+                        <div class="relative h-64">
+                            <canvas id="budgetChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities & Urgent Tasks -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-500"></i> Tugas Prioritas & Deadline
+                            </h4>
+                            <button onclick="switchTab('tasks')" class="text-xs text-emerald-600 hover:underline font-semibold">Lihat Semua</button>
+                        </div>
+                        <div id="dashboard-urgent-tasks" class="space-y-3">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <h4 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-blue-500"></i> Log Aktivitas Terakhir
+                        </h4>
+                        <div id="dashboard-recent-activity" class="space-y-3">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tasks Section -->
+            <section id="tab-tasks" class="tab-content hidden space-y-6">
+                <!-- Action Bar -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <input type="text" id="task-search" oninput="renderTasks()" placeholder="Cari tugas..." class="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48">
+                        <select id="task-filter-category" onchange="renderTasks()" class="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="ALL">Semua Kode & Kategori</option>
+                        </select>
+                        <select id="task-filter-status" onchange="renderTasks()" class="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="ALL">Semua Status</option>
+                            <option value="Belum Dimulai">Belum Dimulai</option>
+                            <option value="Dalam Proses">Dalam Proses</option>
+                            <option value="Selesai">Selesai</option>
+                        </select>
+                        <select id="task-filter-priority" onchange="renderTasks()" class="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="ALL">Semua Prioritas</option>
+                            <option value="Tinggi">Tinggi</option>
+                            <option value="Sedang">Sedang</option>
+                            <option value="Rendah">Rendah</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <select id="task-report-period-type" onchange="updateTaskReportPeriodOptions()" aria-label="Jenis periode laporan tugas" class="px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="month">Bulanan</option>
+                            <option value="quarter">Triwulan</option>
+                        </select>
+                        <input type="number" id="task-report-year" min="2000" max="2100" aria-label="Tahun laporan tugas" class="w-20 px-2 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Tahun">
+                        <select id="task-report-period" aria-label="Bulan atau triwulan laporan tugas" class="px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"></select>
+                        
+                        <button id="btn-export-task" onclick="exportTaskReportExcel()" class="bg-blue-700 hover:bg-blue-800 text-white font-medium text-xs px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Unduh Laporan Tugas
+                        </button>
+                        <button id="btn-add-task" onclick="openTaskModal()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20">
+                            <i class="fa-solid fa-plus"></i> Tambah Tugas Baru
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Task List Table -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    <th class="p-4">Kode & Kategori</th>
+                                    <th class="p-4">Nama Tugas</th>
+                                    <th class="p-4">Penanggung Jawab</th>
+                                    <th class="p-4">Deadline</th>
+                                    <th class="p-4">Prioritas</th>
+                                    <th class="p-4">Prasyarat (Keterkaitan)</th>
+                                    <th class="p-4">Status</th>
+                                    <th class="p-4 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="task-table-body" class="divide-y divide-slate-200 text-sm">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Collaboration Section -->
+            <section id="tab-collaboration" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[calc(100vh-180px)] min-h-[500px]">
+                    <!-- Live Chat Panel -->
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-[60vh] min-h-[400px] lg:h-full overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+                                    <i class="fa-solid fa-comments"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-sm">Ruang Diskusi & Chat Virtual Proyek</h3>
+                                    <p class="text-xs text-slate-500">Agroforestri Aren - Channel Utama</p>
+                                </div>
+                            </div>
+                            <span class="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2.5 py-1 rounded-full"><i class="fa-solid fa-circle text-[8px] text-emerald-500 mr-1"></i> Real-Time</span>
+                        </div>
+
+                        <!-- Chat Messages Container -->
+                        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Chat Input -->
+                        <div class="p-4 border-t border-slate-200 bg-white">
+                            <form id="chat-form" onsubmit="handleSendChat(event)" class="flex gap-2">
+                                <select id="chat-sender-select" aria-label="Nama pengirim" onchange="renderChat()" required class="max-w-[150px] px-2 py-2.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 font-semibold text-slate-700">
+                                    <!-- Populated dynamically from logged in user -->
+                                </select>
+                                <input type="text" id="chat-input" placeholder="Tulis pesan koordinasi lapangan..." required class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm">
+                                    <span>Kirim</span>
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Announcements & Shared Workspace -->
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between overflow-y-auto space-y-6">
+                        <div>
+                            <div class="flex justify-between items-center mb-3 gap-2">
+                                <h4 class="font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-bullhorn text-amber-500"></i> Pengumuman Tim
+                                </h4>
+                                <button id="add-announcement-btn" type="button" onclick="addAnnouncement()" class="hidden shrink-0 text-xs font-semibold text-emerald-600 hover:text-emerald-700" title="Tambah pengumuman">
+                                    <i class="fa-solid fa-plus mr-1"></i>Tambah
+                                </button>
+                            </div>
+                            <div id="announcements-list" class="space-y-3"></div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-users text-emerald-600"></i> Anggota Tim Proyek
+                            </h4>
+                            <div id="team-members-list" class="space-y-2">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Knowledge Section -->
+            <section id="tab-knowledge" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <input type="text" id="doc-search" oninput="renderDocuments()" placeholder="Cari SOP, template, atau dokumen..." class="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-64">
+                    <button id="btn-add-doc" onclick="openDocModal()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20">
+                        <i class="fa-solid fa-upload"></i> Tambah Dokumen / SOP
+                    </button>
+                </div>
+
+                <!-- Document Grid -->
+                <div id="knowledge-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+            </section>
+
+            <!-- Budget & Cash Flow & Team Section -->
+            <section id="tab-budget" class="tab-content hidden space-y-6">
+                <!-- Action Bar & Cash Flow Excel Export Header -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-base">Pengelolaan Anggaran, Arus Kas & SDM</h3>
+                        <p class="text-xs text-slate-500">Pencatatan Pemasukan, Pengeluaran, serta Unduh Laporan Cash-Flow ke Excel.</p>
+                    </div>
+                    <button id="btn-export-cashflow" onclick="exportCashFlowExcel()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-md shadow-emerald-900/20">
+                        <i class="fa-solid fa-file-excel text-sm"></i> Download Laporan Cash Flow (.xlsx)
+                    </button>
+                </div>
+
+                <!-- Budget Overview Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Total Pemasukan</p>
+                            <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-down-left"></i></span>
+                        </div>
+                        <h3 id="budget-income-text" class="text-2xl font-bold text-emerald-600 mt-1">Rp 0</h3>
+                        <p class="text-xs text-slate-500 mt-1">Total Dana Masuk Proyek</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Total Pengeluaran</p>
+                            <span class="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-up-right"></i></span>
+                        </div>
+                        <h3 id="budget-spent-text" class="text-2xl font-bold text-red-600 mt-1">Rp 0</h3>
+                        <p id="budget-percentage-text" class="text-xs text-slate-500 font-medium mt-1">Realisasi Biaya Lapangan</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Net Cash Flow (Saldo)</p>
+                            <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs"><i class="fa-solid fa-scale-balanced"></i></span>
+                        </div>
+                        <h3 id="budget-remaining-text" class="text-2xl font-bold text-blue-600 mt-1">Rp 0</h3>
+                        <p class="text-xs text-slate-500 mt-1">Pemasukan minus Pengeluaran</p>
+                    </div>
+                </div>
+
+                <!-- Budget Table & Form -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                            <h4 class="font-bold text-slate-800 text-sm">Jurnal Arus Kas (Pemasukan & Pengeluaran)</h4>
+                            <span class="text-xs text-slate-500">Real-time Financial Log</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+                                        <th class="p-3">Tipe</th>
+                                        <th class="p-3">Kategori</th>
+                                        <th class="p-3">Deskripsi</th>
+                                        <th class="p-3">Jumlah (Rp)</th>
+                                        <th class="p-3">Tanggal</th>
+                                        <th class="p-3 text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="budget-table-body" class="divide-y divide-slate-200 text-sm">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Add Budget / Cash Flow Form -->
+                    <div id="budget-form-container" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-fit">
+                        <h4 class="font-bold text-slate-800 text-sm mb-4">Catat Transaksi Arus Kas</h4>
+                        <form id="budget-form" onsubmit="handleSaveBudget(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Tipe Transaksi</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="flex items-center justify-center p-2.5 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer has-[:checked]:bg-emerald-50 has-[:checked]:border-emerald-500 has-[:checked]:text-emerald-700">
+                                        <input type="radio" name="budget-type" value="PEMASUKAN" class="hidden" checked onchange="updateCategoryOptions()">
+                                        <i class="fa-solid fa-circle-arrow-down mr-1.5 text-emerald-600"></i> Pemasukan
+                                    </label>
+                                    <label class="flex items-center justify-center p-2.5 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer has-[:checked]:bg-red-50 has-[:checked]:border-red-500 has-[:checked]:text-red-700">
+                                        <input type="radio" name="budget-type" value="PENGELUARAN" class="hidden" onchange="updateCategoryOptions()">
+                                        <i class="fa-solid fa-circle-arrow-up mr-1.5 text-red-600"></i> Pengeluaran
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori Pos Biaya</label>
+                                <select id="budget-category" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <!-- Options updated dynamically -->
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Deskripsi Pos Biaya / Sumber</label>
+                                <input type="text" id="budget-title" required placeholder="Contoh: Pencairan Termin 1 Investor" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Jumlah Nominal (Rp)</label>
+                                <input type="number" id="budget-amount" min="1" required placeholder="5000000" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal Transaksi</label>
+                                <input type="date" id="budget-date" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">Bukti Transaksi (Gambar)</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label class="block text-[11px] text-slate-500">Unggah file
+                                        <input type="file" id="budget-proof" accept="image/*" class="w-full px-2 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </label>
+                                    <label class="block text-[11px] text-slate-500">Ambil foto dengan kamera (ponsel)
+                                        <input type="file" id="budget-proof-camera" accept="image/*" capture="environment" class="w-full px-2 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" id="btn-save-budget" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-md shadow-emerald-900/20">
+                                Simpan Transaksi Arus Kas
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Modul Manajemen Tim Progresif (CRUD SDM & Admin Password Management) -->
+                <div id="sdm-management-card" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                            <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-users text-emerald-600"></i> Manajemen Tim & Sumber Daya Manusia (SDM)
+                            </h4>
+                            <p class="text-xs text-slate-500">Kelola daftar anggota tim proyek, peran, serta kata sandi pengguna.</p>
+                        </div>
+                        <button id="btn-add-team-member" onclick="openTeamModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-user-plus"></i> Tambah Anggota Tim
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+                                    <th class="p-4">Nama Lengkap</th>
+                                    <th class="p-4">Peran / Jabatan Matriks</th>
+                                    <th class="p-4">Tugas Aktif</th>
+                                    <th class="p-4 text-center">Aksi & Keamanan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="team-table-body" class="divide-y divide-slate-200 text-sm">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Self-Service Change Password Modal -->
+    <div id="change-password-modal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-key text-emerald-400"></i> Ubah Kata Sandi Akun
+                </h3>
+                <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="change-password-form" onsubmit="handleSelfPasswordChange(event)" class="p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Kata Sandi Lama</label>
+                    <div class="relative">
+                        <input type="password" id="old-password" required placeholder="Masukkan kata sandi lama" class="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <button type="button" onclick="togglePasswordVisibility('old-password', 'toggle-old-pass-icon')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                            <i id="toggle-old-pass-icon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Kata Sandi Baru</label>
+                    <div class="relative">
+                        <input type="password" id="new-password" minlength="4" required placeholder="Minimal 4 karakter" class="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <button type="button" onclick="togglePasswordVisibility('new-password', 'toggle-new-pass-icon')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                            <i id="toggle-new-pass-icon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Konfirmasi Kata Sandi Baru</label>
+                    <div class="relative">
+                        <input type="password" id="confirm-new-password" minlength="4" required placeholder="Ulangi kata sandi baru" class="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <button type="button" onclick="togglePasswordVisibility('confirm-new-password', 'toggle-confirm-pass-icon')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                            <i id="toggle-confirm-pass-icon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Perbarui Sandi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+                <h3 id="task-modal-title" class="font-bold text-base">Tambah Tugas Baru</h3>
+                <button onclick="closeTaskModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="task-form" onsubmit="handleSaveTask(event)" class="p-5 space-y-4">
+                <input type="hidden" id="task-id">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="task-category" class="block text-xs font-semibold text-slate-600">Kategori Kegiatan Utama</label>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="addTaskCategory()" class="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700">Tambah</button>
+                            <button type="button" onclick="editTaskCategory()" class="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700">Ubah</button>
+                            <button type="button" onclick="deleteTaskCategory()" class="text-[11px] font-semibold text-red-600 hover:text-red-700">Hapus</button>
+                        </div>
+                    </div>
+                    <select id="task-category" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <!-- Categories -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Tugas</label>
+                    <input type="text" id="task-title" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Penanggung Jawab</label>
+                        <select id="task-assignee" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Deadline</label>
+                        <input type="date" id="task-deadline" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Prioritas</label>
+                        <select id="task-priority" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="Tinggi">Tinggi</option>
+                            <option value="Sedang" selected>Sedang</option>
+                            <option value="Rendah">Rendah</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+                        <select id="task-status" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="Belum Dimulai">Belum Dimulai</option>
+                            <option value="Dalam Proses">Dalam Proses</option>
+                            <option value="Selesai">Selesai</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tugas Prasyarat (Keterkaitan)</label>
+                    <select id="task-dependency" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="">-- Tanpa Prasyarat --</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeTaskModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Simpan Tugas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Document Modal -->
+    <div id="doc-modal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base">Tambah Dokumen / SOP Baru</h3>
+                <button onclick="closeDocModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="doc-form" onsubmit="handleSaveDoc(event)" class="p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Judul Dokumen / SOP</label>
+                    <input type="text" id="doc-title" required placeholder="SOP Pembibitan Aren Industri" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
+                    <select id="doc-category" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="SOP & Panduan">SOP & Panduan</option>
+                        <option value="Template Laporan">Template Laporan</option>
+                        <option value="Kontrak & Legal">Kontrak & Legal</option>
+                        <option value="Peta & Survei">Peta & Survei Lapangan</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ringkasan / Catatan</label>
+                    <textarea id="doc-summary" rows="3" required placeholder="Ringkasan singkat isi dokumen..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Link File / URL Lampiran</label>
+                    <input type="url" id="doc-url" placeholder="https://drive.google.com/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeDocModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Simpan Dokumen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Team Member Modal with Initial Password Setting -->
+    <div id="team-modal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+                <h3 id="team-modal-title" class="font-bold text-base">Tambah Anggota Tim Baru</h3>
+                <button onclick="closeTeamModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="team-form" onsubmit="handleSaveTeam(event)" class="p-5 space-y-4">
+                <input type="hidden" id="team-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap & Gelar</label>
+                    <input type="text" id="team-name" required placeholder="Contoh: Ir. Sugiyono, M.Si." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Peran / Jabatan Proyek</label>
+                    <select id="team-role-select" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="Project Manager / Ahli Lingkungan">Project Manager / Ahli Lingkungan</option>
+                        <option value="Pemegang Dana Operasional/Maker">Pemegang Dana Operasional/Maker</option>
+                        <option value="Fasilitator Safeguards">Fasilitator Safeguards</option>
+                        <option value="Staf Administrasi">Staf Administrasi</option>
+                    </select>
+                </div>
+                <div>
+                    <label id="team-pass-label" class="block text-xs font-semibold text-slate-600 mb-1">Kata Sandi Awal (Password)</label>
+                    <input type="password" id="team-password" placeholder="Default jika kosong: 123456" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <p class="text-[11px] text-slate-400 mt-1">Isi hanya jika ingin menyetel/mengganti password pengguna ini secara eksplisit.</p>
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeTeamModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Simpan Anggota</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Modal Dialog (Non-blocking) -->
+    <div id="custom-alert-modal" class="fixed inset-0 modal-backdrop hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 p-5 text-center space-y-4">
+            <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <h3 id="alert-modal-title" class="font-bold text-slate-800 text-base">Perhatian</h3>
+            <p id="alert-modal-message" class="text-xs text-slate-600 leading-relaxed"></p>
+            <div class="flex justify-center space-x-2 pt-2" id="alert-modal-actions">
+                <button onclick="closeAlertModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Core with Password Security & RBAC Enforcement -->
+    <script>
+        const STORAGE_KEY = 'AGROFORESTRI_AREN_PM_DATA_V2';
+        const DB_NAME = 'AgroforestriArenDB';
+        const DB_STORE = 'application';
+        const DB_RECORD_KEY = 'appData';
+        const DB_SYNC_URL_KEY = 'AGROFORESTRI_AREN_DATABASE_URL';
+        const DB_UPDATED_KEY = 'AGROFORESTRI_AREN_DATA_UPDATED_AT';
+        const DEFAULT_USER_PASSWORD = '123456';
+
+        // Definisi RBAC Matrices berdasarkan Peran SDM
+        const RBAC_ROLES = {
+            'PROJECT_MANAGER': {
+                name: 'Project Manager / Ahli Lingkungan',
+                badgeClass: 'bg-purple-100 text-purple-800 border-purple-300',
+                label: 'Super Admin / Full Access',
+                tabs: ['dashboard', 'tasks', 'collaboration', 'knowledge', 'budget'],
+                canManageTeam: true,
+                canManageTasks: true,
+                canManageBudget: true,
+                canExportReports: true,
+                canAnnounce: true,
+                canManageDocs: true,
+                canResetUserPassword: true,
+                description: 'Akses penuh ke seluruh modul, manajemen SDM, reset password anggota, persetujuan transaksi, dan laporan.'
+            },
+            'FINANCE': {
+                name: 'Pemegang Dana Operasional/Maker',
+                badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                label: 'Akses Finansial & Operasional',
+                tabs: ['dashboard', 'tasks', 'collaboration', 'knowledge', 'budget'],
+                canManageTeam: false,
+                canManageTasks: true,
+                canManageBudget: true, // CRUD Keuangan
+                canExportReports: true,
+                canAnnounce: false,
+                canManageDocs: true,
+                canResetUserPassword: false,
+                description: 'Pencatatan arus kas, ekspor laporan cash flow, manajemen tugas & dokumen.'
+            },
+            'SAFEGUARDS': {
+                name: 'Fasilitator Safeguards',
+                badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+                label: 'Akses Lapangan & Safeguards',
+                tabs: ['dashboard', 'tasks', 'collaboration', 'knowledge'],
+                canManageTeam: false,
+                canManageTasks: true,
+                canManageBudget: false, // Hanya baca ringkasan
+                canExportReports: true,
+                canAnnounce: false,
+                canManageDocs: true,
+                canResetUserPassword: false,
+                description: 'Pengelolaan tugas lapangan, koordinasi chat, pengunggahan SOP & dokumen.'
+            },
+            'ADMIN': {
+                name: 'Staf Administrasi',
+                badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+                label: 'Akses Administrasi Data',
+                tabs: ['dashboard', 'tasks', 'collaboration', 'knowledge'],
+                canManageTeam: false,
+                canManageTasks: true,
+                canManageBudget: false,
+                canExportReports: false,
+                canAnnounce: true, // Pengumuman
+                canManageDocs: true,
+                canResetUserPassword: false,
+                description: 'Pencatatan tugas, pengelolaan pengumuman, pengunggahan berkas administrasi.'
+            }
+        };
+
+        // Default Initial Data
+        const DEFAULT_DATA = {
+            team: [
+                { id: '1', name: 'Dr. Uci Sulandari, M.Si', role: 'Project Manager / Ahli Lingkungan', password: DEFAULT_USER_PASSWORD },
+                { id: '2', name: 'Intan Handayani, S.Hut', role: 'Pemegang Dana Operasional/Maker', password: DEFAULT_USER_PASSWORD },
+                { id: '3', name: 'Sugiyono, STP, M.Si', role: 'Fasilitator Safeguards', password: DEFAULT_USER_PASSWORD },
+                { id: '4', name: 'Diah Puspita Hati, SP, MP.', role: 'Staf Administrasi', password: DEFAULT_USER_PASSWORD }
+            ],
+            tasks: [
+                {
+                    id: 'task-1',
+                    categoryCode: 'KAT-01',
+                    categoryName: 'Perencanaan & Lahan',
+                    title: 'Survei Kelayakan Lahan & Uji Tanah Blok A',
+                    assignee: 'Sugiyono, STP, M.Si',
+                    deadline: '2026-10-10',
+                    priority: 'Tinggi',
+                    status: 'Selesai',
+                    dependency: ''
+                },
+                {
+                    id: 'task-2',
+                    categoryCode: 'KAT-02',
+                    categoryName: 'Pengadaan & Pembibitan',
+                    title: 'Pengadaan Bibit Aren Varietas Unggul (1,000 Pohon)',
+                    assignee: 'Intan Handayani, S.Hut',
+                    deadline: '2026-10-14',
+                    priority: 'Tinggi',
+                    status: 'Dalam Proses',
+                    dependency: 'task-1'
+                },
+                {
+                    id: 'task-3',
+                    categoryCode: 'KAT-03',
+                    categoryName: 'Infrastruktur & Irigasi',
+                    title: 'Pemasangan Pagar Keliling & Sistem Irigasi Tetes',
+                    assignee: 'Sugiyono, STP, M.Si',
+                    deadline: '2026-10-12',
+                    priority: 'Sedang',
+                    status: 'Belum Dimulai',
+                    dependency: 'task-1'
+                },
+                {
+                    id: 'task-4',
+                    categoryCode: 'KAT-04',
+                    categoryName: 'Pelatihan & SDM',
+                    title: 'Pelatihan Teknik Penanaman Agroforestri Bagi Petani Lokal',
+                    assignee: 'Dr. Uci Sulandari, M.Si',
+                    deadline: '2026-12-01',
+                    priority: 'Sedang',
+                    status: 'Belum Dimulai',
+                    dependency: 'task-2'
+                }
+            ],
+            chat: [
+                { id: 'c1', senderId: '1', sender: 'Dr. Uci Sulandari, M.Si', message: 'Selamat pagi tim. Mohon pembaruan progres uji tanah Blok A.', time: '08:30' },
+                { id: 'c2', senderId: '3', sender: 'Sugiyono, STP, M.Si', message: 'Hasil tes pH tanah sudah keluar bu, rata-rata 6.2, sangat cocok untuk aren.', time: '08:45' }
+            ],
+            announcements: [
+                { id: 'ann-1', title: 'Pemeriksaan Pembibitan Aren', message: 'Seluruh tim lapangan diharapkan hadir pada survei lokasi blok C besok pukul 08.00 WIB.' },
+                { id: 'ann-2', title: 'Laporan Pertumbuhan Bulanan', message: 'Unggah berkas log tanaman sebelum akhir minggu ini untuk penyesuaian anggaran pupuk.' }
+            ],
+            documents: [
+                {
+                    id: 'doc-1',
+                    title: 'SOP Penanaman & Pemeliharaan Aren Agroforestri',
+                    category: 'SOP & Panduan',
+                    summary: 'Panduan standar operasional untuk pola tanam ganda aren dengan tanaman sela.',
+                    url: '#',
+                    date: '2026-10-10'
+                },
+                {
+                    id: 'doc-2',
+                    title: 'Template Laporan Mingguan Lapangan',
+                    category: 'Template Laporan',
+                    summary: 'Format baku untuk pencatatan progres fisik dan inventaris bibit.',
+                    url: '#',
+                    date: '2026-10-12'
+                }
+            ],
+            budgets: [
+                { id: 'b1', type: 'PEMASUKAN', title: 'Pencairan Dana Hibah Modal Awal Proyek', category: 'Modal / Investor', amount: 250000000, date: '2026-10-01' },
+                { id: 'b2', type: 'PENGELUARAN', title: 'Uji Laboratorium Sampel Tanah', category: 'Operasional Lapangan', amount: 8500000, date: '2026-10-14' },
+                { id: 'b3', type: 'PENGELUARAN', title: 'DP Pembelian Bibit Aren Unggul', category: 'Peralatan & Bibit', amount: 45000000, date: '2026-10-15' },
+                { id: 'b4', type: 'PEMASUKAN', title: 'Penjualan Hasil Panen Sela Polyculture', category: 'Hasil Penjualan / Produk', amount: 12500000, date: '2026-10-16' }
+            ],
+            logs: [
+                { id: 'l1', text: 'Tugas "Survei Kelayakan Lahan" ditandai Selesai', time: '14/10/2026 10:30' },
+                { id: 'l2', text: 'Transaksi Pemasukan dicatat: Penjualan Hasil Panen Sela', time: '16/10/2026 09:15' }
+            ]
+        };
+
+        // Application State
+        let appData = {};
+        let statusChartInstance = null;
+        let budgetChartInstance = null;
+        let pendingConfirmCallback = null;
+        let currentUser = null;
+        let currentRoleConfig = null;
+
+        async function initApp() {
+            await loadDataFromStorage();
+            initializeTaskCategories();
+            initializeLogin();
+            document.getElementById('task-report-year').value = new Date().getFullYear();
+            updateTaskReportPeriodOptions();
+            updateCategoryOptions();
+            populateDropdowns();
+            renderAllViews();
+            initCharts();
+            checkAndShowOverdueAlerts(false);
+            window.addEventListener('online', syncDatabase);
+        }
+
+        function openLocalDatabase() {
+            return new Promise((resolve, reject) => {
+                if (!('indexedDB' in window)) return reject(new Error('IndexedDB tidak tersedia'));
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = () => {
+                    if (!request.result.objectStoreNames.contains(DB_STORE)) {
+                        request.result.createObjectStore(DB_STORE, { keyPath: 'key' });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error || new Error('Gagal membuka database lokal'));
+            });
+        }
+
+        async function readLocalDatabase() {
+            try {
+                const db = await openLocalDatabase();
+                const result = await new Promise((resolve, reject) => {
+                    const request = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(DB_RECORD_KEY);
+                    request.onsuccess = () => resolve(request.result || null);
+                    request.onerror = () => reject(request.error);
+                });
+                db.close();
+                if (result) return result;
+            } catch (error) {
+                console.warn('Database lokal tidak tersedia; menggunakan penyimpanan browser.', error);
+            }
+            const raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? { data: JSON.parse(raw), updatedAt: localStorage.getItem(DB_UPDATED_KEY) || '' } : null;
+        }
+
+        async function writeLocalDatabase(data, updatedAt = new Date().toISOString()) {
+            const record = { key: DB_RECORD_KEY, data, updatedAt };
+            // localStorage mirror provides a synchronous fallback and protects against IndexedDB failure.
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            localStorage.setItem(DB_UPDATED_KEY, updatedAt);
+            try {
+                const db = await openLocalDatabase();
+                await new Promise((resolve, reject) => {
+                    const request = db.transaction(DB_STORE, 'readwrite').objectStore(DB_STORE).put(record);
+                    request.onsuccess = resolve;
+                    request.onerror = () => reject(request.error);
+                });
+                db.close();
+            } catch (error) {
+                console.warn('Perubahan tersimpan pada penyimpanan browser, tetapi IndexedDB gagal.', error);
+            }
+            return record;
+        }
+
+        function getDatabaseSyncUrl() {
+            return (localStorage.getItem(DB_SYNC_URL_KEY) || '').trim();
+        }
+
+        function configureDatabaseSync() {
+            const currentUrl = getDatabaseSyncUrl();
+            const enteredUrl = prompt('URL REST database online (endpoint JSON menerima GET dan PUT). Kosongkan untuk mode offline saja:', currentUrl);
+            if (enteredUrl === null) return;
+            const url = enteredUrl.trim();
+            if (url) {
+                try {
+                    const parsed = new URL(url);
+                    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('URL tidak valid');
+                } catch (error) {
+                    showAlertModal('Masukkan URL database HTTP/HTTPS yang valid.', 'URL Database Tidak Valid');
+                    return;
+                }
+                localStorage.setItem(DB_SYNC_URL_KEY, url);
+                syncDatabase();
+            } else {
+                localStorage.removeItem(DB_SYNC_URL_KEY);
+                showAlertModal('Database lokal offline tetap aktif. Endpoint sinkronisasi online telah dihapus.', 'Mode Offline');
+            }
+        }
+
+        async function syncDatabase() {
+            const url = getDatabaseSyncUrl();
+            if (!url || !navigator.onLine) {
+                if (url && !navigator.onLine) showAlertModal('Tidak ada koneksi internet. Data tetap tersimpan di database lokal dan akan disinkronkan saat online.', 'Mode Offline');
+                return;
+            }
+            try {
+                let localRecord = await readLocalDatabase();
+                if (!localRecord) return;
+                let remoteRecord = null;
+                try {
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (response.ok) remoteRecord = await response.json();
+                    else if (response.status !== 404) throw new Error(`Server merespons ${response.status}`);
+                } catch (error) {
+                    if (error.message !== 'Failed to fetch') throw error;
+                }
+
+                // The record format is { data, updatedAt }; use the newer copy to resolve concurrent edits.
+                const remoteData = remoteRecord?.data && typeof remoteRecord.data === 'object' ? remoteRecord.data : null;
+                const remoteTime = Date.parse(remoteRecord?.updatedAt || '') || 0;
+                const localTime = Date.parse(localRecord.updatedAt || '') || 0;
+                if (remoteData && remoteTime > localTime) {
+                    localRecord = await writeLocalDatabase(remoteData, remoteRecord.updatedAt);
+                    appData = remoteData;
+                    renderAllViews();
+                }
+                const upload = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ data: localRecord.data, updatedAt: localRecord.updatedAt })
+                });
+                if (!upload.ok) throw new Error(`Server merespons ${upload.status}`);
+                showAlertModal('Data berhasil disinkronkan dengan database online. Database lokal tetap tersedia saat offline.', 'Sinkronisasi Berhasil');
+            } catch (error) {
+                console.error('Sinkronisasi database gagal:', error);
+                showAlertModal('Sinkronisasi online gagal. Perubahan tetap tersimpan lokal dan dapat dicoba kembali saat koneksi tersedia.', 'Database Offline');
+            }
+        }
+
+        // Helper untuk Tampilkan / Sembunyikan Password Input
+        function togglePasswordVisibility(inputId, iconId) {
+            const inputEl = document.getElementById(inputId);
+            const iconEl = document.getElementById(iconId);
+            if (!inputEl || !iconEl) return;
+
+            if (inputEl.type === 'password') {
+                inputEl.type = 'text';
+                iconEl.classList.remove('fa-eye');
+                iconEl.classList.add('fa-eye-slash');
+            } else {
+                inputEl.type = 'password';
+                iconEl.classList.remove('fa-eye-slash');
+                iconEl.classList.add('fa-eye');
+            }
+        }
+
+        // Helper untuk Mengambil Konfigurasi Role berdasarkan Jabatan SDM
+        function getRoleConfig(roleString) {
+            if (!roleString) return RBAC_ROLES['ADMIN'];
+            if (roleString.includes('Manager') || roleString.includes('Ahli Lingkungan')) {
+                return RBAC_ROLES['PROJECT_MANAGER'];
+            } else if (roleString.includes('Dana') || roleString.includes('Maker')) {
+                return RBAC_ROLES['FINANCE'];
+            } else if (roleString.includes('Safeguards')) {
+                return RBAC_ROLES['SAFEGUARDS'];
+            } else {
+                return RBAC_ROLES['ADMIN'];
+            }
+        }
+
+        function initializeLogin() {
+            const userSelect = document.getElementById('login-user');
+            userSelect.innerHTML = '<option value="">-- Pilih Anggota Tim SDM --</option>' + appData.team.map(member =>
+                `<option value="${escapeHTML(member.id)}">${escapeHTML(member.name)} (${escapeHTML(member.role)})</option>`
+            ).join('');
+
+            const savedUserId = sessionStorage.getItem('AGROFORESTRI_AREN_CURRENT_USER');
+            currentUser = appData.team.find(member => member.id === savedUserId) || null;
+
+            if (currentUser) {
+                userSelect.value = currentUser.id;
+                currentRoleConfig = getRoleConfig(currentUser.role);
+                applyRBACPermissions();
+                showLoggedInUser();
+            } else {
+                sessionStorage.removeItem('AGROFORESTRI_AREN_CURRENT_USER');
+                document.getElementById('login-screen').classList.remove('hidden');
+            }
+
+            const hasMembers = appData.team.length > 0;
+            document.getElementById('login-submit').disabled = !hasMembers;
+            document.getElementById('login-empty-message').classList.toggle('hidden', hasMembers);
+            updateLoginRoleInfo();
+        }
+
+        function updateLoginRoleInfo() {
+            const selectedId = document.getElementById('login-user').value;
+            const selectedMember = appData.team.find(member => member.id === selectedId);
+            const roleBadge = document.getElementById('rbac-badge');
+            const roleNameEl = document.getElementById('login-user-role');
+            const permList = document.getElementById('login-permissions-list');
+
+            if (selectedMember) {
+                const config = getRoleConfig(selectedMember.role);
+                roleBadge.className = `text-[10px] font-bold px-2 py-0.5 rounded border ${config.badgeClass}`;
+                roleBadge.innerText = config.label;
+                roleNameEl.innerText = selectedMember.role;
+
+                permList.classList.remove('hidden');
+                permList.innerHTML = `
+                    <p class="italic text-slate-500 mb-1.5">${config.description}</p>
+                    <div class="grid grid-cols-2 gap-x-2 gap-y-1 font-medium">
+                        <span class="${config.canManageTeam ? 'text-emerald-700' : 'text-slate-400'}"><i class="fa-solid ${config.canManageTeam ? 'fa-check' : 'fa-xmark'} mr-1"></i> Kelola SDM</span>
+                        <span class="${config.canManageBudget ? 'text-emerald-700' : 'text-slate-400'}"><i class="fa-solid ${config.canManageBudget ? 'fa-check' : 'fa-xmark'} mr-1"></i> Arus Kas</span>
+                        <span class="${config.canExportReports ? 'text-emerald-700' : 'text-slate-400'}"><i class="fa-solid ${config.canExportReports ? 'fa-check' : 'fa-xmark'} mr-1"></i> Ekspor Excel</span>
+                        <span class="${config.canAnnounce ? 'text-emerald-700' : 'text-slate-400'}"><i class="fa-solid ${config.canAnnounce ? 'fa-check' : 'fa-xmark'} mr-1"></i> Pengumuman</span>
+                    </div>
+                `;
+            } else {
+                roleBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700';
+                roleBadge.innerText = 'Non-Aktif';
+                roleNameEl.innerText = 'Pilih anggota SDM di atas';
+                permList.classList.add('hidden');
+            }
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const selectedId = document.getElementById('login-user').value;
+            const passwordInput = document.getElementById('login-password').value;
+            const member = appData.team.find(item => item.id === selectedId);
+
+            if (!member) {
+                showAlertModal('Silakan pilih anggota tim SDM terdaftar untuk melanjutkan.', 'Login Ditolak');
+                return;
+            }
+
+            // Validasi Password
+            const registeredPassword = member.password || DEFAULT_USER_PASSWORD;
+            if (passwordInput !== registeredPassword) {
+                showAlertModal('Kata sandi yang Anda masukkan salah. Silakan coba lagi.', 'Autentikasi Gagal');
+                return;
+            }
+
+            currentUser = member;
+            currentRoleConfig = getRoleConfig(member.role);
+            sessionStorage.setItem('AGROFORESTRI_AREN_CURRENT_USER', member.id);
+            
+            document.getElementById('login-password').value = '';
+            applyRBACPermissions();
+            showLoggedInUser();
+            addLog(`User Login: ${member.name} (${member.role})`);
+        }
+
+        function openChangePasswordModal() {
+            if (!currentUser) return;
+            document.getElementById('change-password-form').reset();
+            document.getElementById('change-password-modal').classList.remove('hidden');
+            document.getElementById('change-password-modal').classList.add('flex');
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.add('hidden');
+            document.getElementById('change-password-modal').classList.remove('flex');
+            document.getElementById('change-password-form').reset();
+        }
+
+        function handleSelfPasswordChange(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const oldPass = document.getElementById('old-password').value;
+            const newPass = document.getElementById('new-password').value;
+            const confirmPass = document.getElementById('confirm-new-password').value;
+
+            const userIndex = appData.team.findIndex(m => m.id === currentUser.id);
+            if (userIndex === -1) return;
+
+            const currentRegisteredPassword = appData.team[userIndex].password || DEFAULT_USER_PASSWORD;
+            if (oldPass !== currentRegisteredPassword) {
+                showAlertModal('Kata sandi lama yang Anda masukkan tidak cocok.', 'Gagal Mengubah Password');
+                return;
+            }
+
+            if (newPass !== confirmPass) {
+                showAlertModal('Konfirmasi kata sandi baru tidak cocok dengan kata sandi baru.', 'Password Tidak Cocok');
+                return;
+            }
+
+            if (newPass.length < 4) {
+                showAlertModal('Kata sandi baru minimal terdiri dari 4 karakter.', 'Password Terlalu Pendek');
+                return;
+            }
+
+            // Simpan password baru
+            appData.team[userIndex].password = newPass;
+            currentUser.password = newPass;
+            saveDataToStorage();
+
+            addLog(`Password diubah oleh pengguna: ${currentUser.name}`);
+            closeChangePasswordModal();
+            showAlertModal('Kata sandi Anda berhasil diperbarui.', 'Berhasil');
+        }
+
+        // Penerapan Hak Akses RBAC ke Tampilan Antarmuka
+        function applyRBACPermissions() {
+            if (!currentRoleConfig) return;
+
+            // 1. Sembunyikan / Tampilkan Navigasi Menu berdasarkan RBAC
+            const allTabs = ['dashboard', 'tasks', 'collaboration', 'knowledge', 'budget'];
+            allTabs.forEach(tab => {
+                const navBtn = document.getElementById(`nav-${tab}`);
+                if (navBtn) {
+                    if (currentRoleConfig.tabs.includes(tab)) {
+                        navBtn.classList.remove('hidden');
+                    } else {
+                        navBtn.classList.add('hidden');
+                    }
+                }
+            });
+
+            // 2. Kontrol Tombol Aksi SDM & Anggaran
+            const addTeamBtn = document.getElementById('btn-add-team-member');
+            if (addTeamBtn) {
+                addTeamBtn.style.display = currentRoleConfig.canManageTeam ? 'inline-flex' : 'none';
+            }
+
+            const budgetFormContainer = document.getElementById('budget-form-container');
+            if (budgetFormContainer) {
+                budgetFormContainer.style.display = currentRoleConfig.canManageBudget ? 'block' : 'none';
+            }
+
+            const exportCashflowBtn = document.getElementById('btn-export-cashflow');
+            if (exportCashflowBtn) {
+                exportCashflowBtn.style.display = currentRoleConfig.canExportReports ? 'inline-flex' : 'none';
+            }
+
+            const exportTaskBtn = document.getElementById('btn-export-task');
+            if (exportTaskBtn) {
+                exportTaskBtn.style.display = currentRoleConfig.canExportReports ? 'inline-flex' : 'none';
+            }
+
+            // Jika tab aktif saat ini tidak diizinkan untuk role ini, switch ke 'dashboard'
+            const activeTabSection = document.querySelector('.tab-content:not(.hidden)');
+            if (activeTabSection) {
+                const currentTabId = activeTabSection.id.replace('tab-', '');
+                if (!currentRoleConfig.tabs.includes(currentTabId)) {
+                    switchTab('dashboard');
+                }
+            }
+        }
+
+        function showLoggedInUser() {
+            if (!currentUser) return;
+            const avatarText = currentUser.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+            document.getElementById('current-user-avatar').innerText = avatarText;
+            document.getElementById('current-user-name').innerText = currentUser.name;
+            document.getElementById('current-user-role').innerText = currentUser.role;
+            document.getElementById('login-screen').classList.add('hidden');
+
+            // Sinkronkan pengirim di ruang chat dengan pengguna yang sedang login
+            const chatSenderSelect = document.getElementById('chat-sender-select');
+            if (chatSenderSelect) {
+                chatSenderSelect.value = currentUser.id;
+            }
+        }
+
+        function logoutUser() {
+            currentUser = null;
+            currentRoleConfig = null;
+            sessionStorage.removeItem('AGROFORESTRI_AREN_CURRENT_USER');
+            document.getElementById('login-form').reset();
+            updateLoginRoleInfo();
+            document.getElementById('login-screen').classList.remove('hidden');
+        }
+
+        // Check if task deadline is overdue
+        function isTaskOverdue(task) {
+            if (task.status === 'Selesai' || !task.deadline) return false;
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const deadlineDate = new Date(task.deadline);
+            deadlineDate.setHours(0,0,0,0);
+            return deadlineDate < today;
+        }
+
+        // Alert system logic for overdue tasks
+        function checkAndShowOverdueAlerts(manualTrigger = false) {
+            const overdueTasks = appData.tasks.filter(isTaskOverdue);
+            const badgeBtn = document.getElementById('overdue-badge-btn');
+            const countBadge = document.getElementById('overdue-count-badge');
+            const bannerAlert = document.getElementById('overdue-banner-alert');
+            const bannerText = document.getElementById('overdue-banner-text');
+
+            if (overdueTasks.length > 0) {
+                if (badgeBtn) badgeBtn.classList.remove('hidden');
+                if (countBadge) countBadge.innerText = overdueTasks.length;
+                
+                if (bannerAlert && bannerText) {
+                    bannerAlert.classList.remove('hidden');
+                    bannerText.innerText = `Terdapat ${overdueTasks.length} tugas yang telah melewati deadline tanpa penyelesaian! (${overdueTasks.map(t => t.title).join(', ')})`;
+                }
+
+                if (manualTrigger) {
+                    const overdueListText = overdueTasks.map(t => `• ${t.title} (PJ: ${t.assignee}, Deadline: ${t.deadline})`).join('\n');
+                    showAlertModal(`Daftar Tugas Terlambat:\n\n${overdueListText}`, `Peringatan: ${overdueTasks.length} Tugas Overdue`);
+                }
+            } else {
+                if (badgeBtn) badgeBtn.classList.add('hidden');
+                if (bannerAlert) bannerAlert.classList.add('hidden');
+
+                if (manualTrigger) {
+                    showAlertModal("Semua tugas berjalan sesuai jadwal atau telah diselesaikan.", "Tidak Ada Peringatan Deadline");
+                }
+            }
+        }
+
+        function renderTasks() {
+            const search = document.getElementById('task-search').value.toLowerCase();
+            const categoryFilter = document.getElementById('task-filter-category');
+            const selectedCategory = categoryFilter.value;
+            const categories = Array.isArray(appData.categories) ? appData.categories : [];
+            categoryFilter.innerHTML = '<option value="ALL">Semua Kode & Kategori</option>' + categories.map(category =>
+                `<option value="${category.code}">[${category.code}] ${category.name}</option>`
+            ).join('');
+            if (Array.from(categoryFilter.options).some(option => option.value === selectedCategory)) {
+                categoryFilter.value = selectedCategory;
+            }
+            const filterCategory = categoryFilter.value;
+            const filterStatus = document.getElementById('task-filter-status').value;
+            const filterPriority = document.getElementById('task-filter-priority').value;
+
+            const filtered = appData.tasks.filter(task => {
+                const matchSearch = task.title.toLowerCase().includes(search) || 
+                                    task.assignee.toLowerCase().includes(search) ||
+                                    (task.categoryCode && task.categoryCode.toLowerCase().includes(search)) ||
+                                    (task.categoryName && task.categoryName.toLowerCase().includes(search));
+                const matchStatus = filterStatus === 'ALL' || task.status === filterStatus;
+                const matchPriority = filterPriority === 'ALL' || task.priority === filterPriority;
+                const matchCategory = filterCategory === 'ALL' || (task.categoryCode || 'KAT-01') === filterCategory;
+                return matchSearch && matchCategory && matchStatus && matchPriority;
+            });
+
+            const tbody = document.getElementById('task-table-body');
+            const canManageTasks = currentRoleConfig ? currentRoleConfig.canManageTasks : true;
+
+            tbody.innerHTML = filtered.map(task => {
+                const parentTask = appData.tasks.find(t => t.id === task.dependency);
+                const depName = parentTask ? `[${parentTask.categoryCode || 'KAT'}] ${parentTask.title}` : '-';
+                const overdue = isTaskOverdue(task);
+                const code = task.categoryCode || 'KAT-01';
+                const catName = task.categoryName || 'Kegiatan Utama';
+
+                return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 ${overdue ? 'bg-red-50/40' : ''}">
+                        <td class="p-4 text-xs font-semibold">
+                            <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono text-[11px] font-bold">
+                                ${code}
+                            </span>
+                            <span class="block text-[11px] text-slate-500 font-normal mt-0.5">${catName}</span>
+                        </td>
+                        <td class="p-4 font-medium text-slate-800">
+                            <div class="flex items-center space-x-2">
+                                <span>${task.title}</span>
+                                ${overdue ? '<span class="text-[10px] font-bold bg-red-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Overdue</span>' : ''}
+                            </div>
+                        </td>
+                        <td class="p-4 text-slate-600">${task.assignee}</td>
+                        <td class="p-4 ${overdue ? 'text-red-600 font-bold' : 'text-slate-600'}">
+                            ${task.deadline}
+                        </td>
+                        <td class="p-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                task.priority === 'Tinggi' ? 'bg-red-100 text-red-800' :
+                                task.priority === 'Sedang' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                            }">${task.priority}</span>
+                        </td>
+                        <td class="p-4 text-xs text-slate-500 max-w-xs truncate" title="${depName}">
+                            ${parentTask ? `<i class="fa-solid fa-link text-slate-400 mr-1"></i>${depName}` : '-'}
+                        </td>
+                        <td class="p-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                task.status === 'Selesai' ? 'bg-emerald-100 text-emerald-800' :
+                                task.status === 'Dalam Proses' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                            }">${task.status}</span>
+                        </td>
+                        <td class="p-4 text-center space-x-2">
+                            ${canManageTasks ? `
+                                <button onclick="editTask('${task.id}')" class="text-slate-400 hover:text-emerald-600"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteTask('${task.id}')" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button>
+                            ` : '<span class="text-xs text-slate-300 italic">Lihat saja</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function handleSaveTask(e) {
+            e.preventDefault();
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak memiliki hak akses untuk mengelola tugas.", "Akses Ditolak");
+                return;
+            }
+
+            const id = document.getElementById('task-id').value;
+            const categoryRaw = document.getElementById('task-category').value;
+            const [categoryCode, categoryName] = categoryRaw.split('|');
+            const title = document.getElementById('task-title').value;
+            const assignee = document.getElementById('task-assignee').value;
+            const deadline = document.getElementById('task-deadline').value;
+            const priority = document.getElementById('task-priority').value;
+            const status = document.getElementById('task-status').value;
+            const dependency = document.getElementById('task-dependency').value;
+
+            if (id) {
+                const idx = appData.tasks.findIndex(t => t.id === id);
+                if (idx !== -1) {
+                    appData.tasks[idx] = { id, categoryCode, categoryName, title, assignee, deadline, priority, status, dependency };
+                    addLog(`Tugas diperbarui: [${categoryCode}] ${title}`);
+                }
+            } else {
+                const newTask = {
+                    id: 'task-' + Date.now(),
+                    categoryCode, categoryName, title, assignee, deadline, priority, status, dependency
+                };
+                appData.tasks.push(newTask);
+                addLog(`Tugas baru ditambahkan: [${categoryCode}] ${title}`);
+            }
+
+            saveDataToStorage();
+            closeTaskModal();
+            renderAllViews();
+            checkAndShowOverdueAlerts(false);
+        }
+
+        async function loadDataFromStorage() {
+            try {
+                const stored = await readLocalDatabase();
+                if (stored?.data) {
+                    appData = stored.data;
+                    if (!Array.isArray(appData.team)) {
+                        appData.team = JSON.parse(JSON.stringify(DEFAULT_DATA.team));
+                    } else {
+                        // Ensure password property exists for all members
+                        appData.team.forEach(m => {
+                            if (!m.password) m.password = DEFAULT_USER_PASSWORD;
+                        });
+                    }
+                    if (!Array.isArray(appData.budgets)) {
+                        appData.budgets = JSON.parse(JSON.stringify(DEFAULT_DATA.budgets));
+                    }
+                    if (!Array.isArray(appData.announcements)) {
+                        appData.announcements = JSON.parse(JSON.stringify(DEFAULT_DATA.announcements));
+                    }
+                    if (!Array.isArray(appData.tasks)) appData.tasks = [];
+                    if (!Array.isArray(appData.chat)) appData.chat = [];
+                    if (!Array.isArray(appData.documents)) appData.documents = [];
+                    if (!Array.isArray(appData.logs)) appData.logs = [];
+                    await writeLocalDatabase(appData, stored.updatedAt || new Date().toISOString());
+                } else {
+                    appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                    await writeLocalDatabase(appData);
+                }
+            } catch (e) {
+                console.error('Gagal memuat database lokal:', e);
+                appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                await writeLocalDatabase(appData);
+            }
+        }
+
+        function saveDataToStorage() {
+            const record = writeLocalDatabase(appData);
+            if (getDatabaseSyncUrl() && navigator.onLine) {
+                record.then(() => syncDatabase()).catch(error => console.warn('Gagal menyimpan perubahan lokal.', error));
+            }
+        }
+
+        function addLog(activityText) {
+            const now = new Date();
+            const timeStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            appData.logs.unshift({ id: 'l-' + Date.now(), text: activityText, time: timeStr });
+            if(appData.logs.length > 20) appData.logs.pop();
+            saveDataToStorage();
+        }
+
+        function showAlertModal(message, title = 'Informasi', confirmCb = null) {
+            document.getElementById('alert-modal-title').innerText = title;
+            document.getElementById('alert-modal-message').innerText = message;
+            
+            const actionsDiv = document.getElementById('alert-modal-actions');
+            if (confirmCb) {
+                pendingConfirmCallback = confirmCb;
+                actionsDiv.innerHTML = `
+                    <button onclick="closeAlertModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs hover:bg-slate-100">Batal</button>
+                    <button onclick="executeConfirmCallback()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium">Hapus</button>
+                `;
+            } else {
+                actionsDiv.innerHTML = `
+                    <button onclick="closeAlertModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium">Tutup</button>
+                `;
+            }
+
+            document.getElementById('custom-alert-modal').classList.remove('hidden');
+            document.getElementById('custom-alert-modal').classList.add('flex');
+        }
+
+        function closeAlertModal() {
+            document.getElementById('custom-alert-modal').classList.add('hidden');
+            document.getElementById('custom-alert-modal').classList.remove('flex');
+            pendingConfirmCallback = null;
+        }
+
+        function executeConfirmCallback() {
+            if (typeof pendingConfirmCallback === 'function') {
+                pendingConfirmCallback();
+            }
+            closeAlertModal();
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `Agroforestri_Aren_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function updateTaskReportPeriodOptions() {
+            const type = document.getElementById('task-report-period-type').value;
+            const periodSelect = document.getElementById('task-report-period');
+            const currentMonth = new Date().getMonth() + 1;
+            if (type === 'quarter') {
+                periodSelect.innerHTML = [1, 2, 3, 4].map(quarter =>
+                    `<option value="${quarter}">Triwulan ${quarter}</option>`
+                ).join('');
+                periodSelect.value = String(Math.ceil(currentMonth / 3));
+            } else {
+                const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                periodSelect.innerHTML = monthNames.map((name, index) =>
+                    `<option value="${index + 1}">${name}</option>`
+                ).join('');
+                periodSelect.value = String(currentMonth);
+            }
+        }
+
+        function exportTaskReportExcel() {
+            if (currentRoleConfig && !currentRoleConfig.canExportReports) {
+                showAlertModal("Peran Anda tidak memiliki wewenang untuk mengunduh laporan tugas.", "Akses Ditolak");
+                return;
+            }
+
+            const type = document.getElementById('task-report-period-type').value;
+            const year = Number(document.getElementById('task-report-year').value);
+            const period = Number(document.getElementById('task-report-period').value);
+
+            if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(period) ||
+                (type === 'month' && (period < 1 || period > 12)) ||
+                (type === 'quarter' && (period < 1 || period > 4))) {
+                showAlertModal('Pilih tahun dan periode laporan yang valid.', 'Periode Laporan Tidak Valid');
+                return;
+            }
+
+            const startMonth = type === 'quarter' ? (period - 1) * 3 + 1 : period;
+            const endMonth = type === 'quarter' ? startMonth + 2 : startMonth;
+            const startDate = `${year}-${String(startMonth).padStart(2, '0')}-01`;
+            const endDate = `${year}-${String(endMonth).padStart(2, '0')}-${String(new Date(year, endMonth, 0).getDate()).padStart(2, '0')}`;
+            const tasks = appData.tasks.filter(task => task.deadline && task.deadline >= startDate && task.deadline <= endDate);
+            
+            if (!tasks.length) {
+                showAlertModal('Tidak ada tugas dengan deadline pada periode yang dipilih.', 'Laporan Tugas Kosong');
+                return;
+            }
+
+            const taskRows = tasks.map((task, index) => {
+                const prerequisite = appData.tasks.find(item => item.id === task.dependency);
+                return {
+                    'No': index + 1,
+                    'Kode Kategori': task.categoryCode || 'KAT-01',
+                    'Kategori': task.categoryName || 'Kegiatan Utama',
+                    'Nama Tugas': task.title,
+                    'Penanggung Jawab': task.assignee,
+                    'Deadline': task.deadline,
+                    'Prioritas': task.priority,
+                    'Prasyarat': prerequisite ? prerequisite.title : '-',
+                    'Status': task.status
+                };
+            });
+
+            const periodLabel = type === 'quarter'
+                ? `Triwulan ${period} ${year}`
+                : `${document.getElementById('task-report-period').selectedOptions[0].text} ${year}`;
+            
+            const statusSummary = ['Belum Dimulai', 'Dalam Proses', 'Selesai'].map(status => ({
+                'Status': status,
+                'Jumlah Tugas': tasks.filter(task => task.status === status).length
+            }));
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(taskRows), 'Laporan Tugas');
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+                { 'Periode': periodLabel, 'Total Tugas': tasks.length },
+                ...statusSummary
+            ]), 'Ringkasan');
+
+            const periodFile = type === 'quarter'
+                ? `Triwulan_${period}_${year}`
+                : `${String(startMonth).padStart(2, '0')}_${year}`;
+            XLSX.writeFile(workbook, `Laporan_Tugas_Agroforestri_Aren_${periodFile}.xlsx`);
+            addLog(`Laporan tugas Excel diunduh (${periodLabel})`);
+        }
+
+        function exportCashFlowExcel() {
+            if (currentRoleConfig && !currentRoleConfig.canExportReports) {
+                showAlertModal("Peran Anda tidak memiliki wewenang mengunduh laporan keuangan.", "Akses Ditolak");
+                return;
+            }
+
+            if (!appData.budgets || appData.budgets.length === 0) {
+                showAlertModal("Belum ada data transaksi arus kas untuk diunduh.", "Peringatan Export Excel");
+                return;
+            }
+
+            let runningBalance = 0;
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            const formattedRows = appData.budgets.map((item, index) => {
+                const amount = Number(item.amount) || 0;
+                const isIncome = item.type === 'PEMASUKAN';
+                
+                if (isIncome) {
+                    totalIncome += amount;
+                    runningBalance += amount;
+                } else {
+                    totalExpense += amount;
+                    runningBalance -= amount;
+                }
+
+                return {
+                    "No": index + 1,
+                    "Tanggal": item.date,
+                    "Tipe Transaksi": isIncome ? "PEMASUKAN" : "PENGELUARAN",
+                    "Kategori": item.category,
+                    "Deskripsi Pos Biaya": item.title,
+                    "Pemasukan (Rp)": isIncome ? amount : 0,
+                    "Pengeluaran (Rp)": !isIncome ? amount : 0,
+                    "Saldo Kumulatif (Rp)": runningBalance
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+
+            const summaryData = [
+                { "Indikator Finansial": "Total Pemasukan (Inflow)", "Nilai (Rp)": totalIncome },
+                { "Indikator Finansial": "Total Pengeluaran (Outflow)", "Nilai (Rp)": totalExpense },
+                { "Indikator Finansial": "Net Cash Flow (Saldo Akhir)", "Nilai (Rp)": runningBalance }
+            ];
+            const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Jurnal Arus Kas");
+            XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan Finansial");
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(workbook, `Laporan_Cash_Flow_Agroforestri_Aren_${dateStr}.xlsx`);
+            addLog("Laporan Cash-Flow Excel diunduh");
+        }
+
+        function renderAllViews() {
+            renderDashboard();
+            renderTasks();
+            renderChat();
+            renderAnnouncements();
+            renderDocuments();
+            renderBudgets();
+            renderTeamTable();
+            updateCharts();
+        }
+
+        function switchTab(tabName) {
+            // RBAC Check sebelum switch tab
+            if (currentRoleConfig && !currentRoleConfig.tabs.includes(tabName)) {
+                showAlertModal(`Akses ke modul "${tabName.toUpperCase()}" dibatasi untuk peran SDM Anda.`, "Akses Ditolak (RBAC)");
+                return;
+            }
+
+            // Tutup sidebar mobile setelah memilih fitur agar area konten kembali penuh.
+            if (window.innerWidth < 768) {
+                document.querySelector('aside').classList.add('hidden');
+            }
+
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-emerald-600', 'text-white', 'shadow-md');
+                btn.classList.add('hover:bg-slate-800', 'hover:text-white');
+            });
+
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`nav-${tabName}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-emerald-600', 'text-white', 'shadow-md');
+                activeBtn.classList.remove('hover:bg-slate-800', 'hover:text-white');
+            }
+
+            const titles = {
+                'dashboard': 'Dashboard & Progres Real-Time',
+                'tasks': 'Manajemen Tugas & Keterkaitan',
+                'collaboration': 'Kolaborasi Tim & Chat Virtual',
+                'knowledge': 'Knowledge Management & Dokumentasi Proyek',
+                'budget': 'Pengelolaan Anggaran, Arus Kas & SDM'
+            };
+            document.getElementById('page-title').innerText = titles[tabName] || 'Agroforestri Aren';
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.querySelector('aside');
+            sidebar.classList.toggle('hidden');
+        }
+
+        function formatRupiah(amount) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
+        }
+
+        function renderDashboard() {
+            const totalTasks = appData.tasks.length;
+            const completedTasks = appData.tasks.filter(t => t.status === 'Selesai').length;
+            const percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            document.getElementById('stat-total-tasks').innerText = totalTasks;
+            document.getElementById('stat-completed-tasks').innerText = completedTasks;
+            document.getElementById('stat-completed-percent').innerText = `${percent}% Tercapai`;
+
+            document.getElementById('sidebar-progress-text').innerText = `${percent}%`;
+            document.getElementById('sidebar-progress-bar').style.width = `${percent}%`;
+
+            const totalIncome = appData.budgets.filter(b => b.type === 'PEMASUKAN').reduce((sum, item) => sum + Number(item.amount), 0);
+            const totalSpent = appData.budgets.filter(b => b.type === 'PENGELUARAN' || !b.type).reduce((sum, item) => sum + Number(item.amount), 0);
+            const netCashFlow = totalIncome - totalSpent;
+
+            document.getElementById('stat-budget-spent').innerText = formatRupiah(netCashFlow);
+            document.getElementById('stat-budget-total').innerText = `Masuk: ${formatRupiah(totalIncome)} | Keluar: ${formatRupiah(totalSpent)}`;
+
+            document.getElementById('stat-team-count').innerText = appData.team.length;
+
+            // Urgent Tasks List
+            const urgentContainer = document.getElementById('dashboard-urgent-tasks');
+            const sortedTasks = [...appData.tasks].sort((a,b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 4);
+            
+            urgentContainer.innerHTML = sortedTasks.map(task => {
+                const isDone = task.status === 'Selesai';
+                const code = task.categoryCode || 'KAT-01';
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-lg border ${isDone ? 'bg-slate-50 border-slate-200' : 'bg-amber-50/50 border-amber-200'}">
+                        <div>
+                            <p class="font-semibold text-xs text-slate-800 ${isDone ? 'line-through text-slate-400' : ''}">
+                                <span class="font-mono text-emerald-700 font-bold mr-1">[${code}]</span>${task.title}
+                            </p>
+                            <p class="text-[11px] text-slate-500 mt-0.5">PJ: ${task.assignee} | Deadline: ${task.deadline}</p>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${
+                            task.priority === 'Tinggi' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+                        }">${task.priority}</span>
+                    </div>
+                `;
+            }).join('') || '<p class="text-xs text-slate-400">Belum ada tugas.</p>';
+
+            // Recent Logs
+            const logContainer = document.getElementById('dashboard-recent-activity');
+            logContainer.innerHTML = appData.logs.slice(0, 4).map(log => `
+                <div class="flex items-start space-x-2 text-xs text-slate-600 border-b border-slate-100 pb-2">
+                    <i class="fa-solid fa-circle-dot text-[10px] text-emerald-500 mt-1"></i>
+                    <div class="flex-1">
+                        <p>${log.text}</p>
+                        <span class="text-[10px] text-slate-400">${log.time}</span>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-xs text-slate-400">Belum ada aktivitas.</p>';
+        }
+
+        function populateDropdowns() {
+            // Populate assignee dropdown
+            const assigneeSelect = document.getElementById('task-assignee');
+            if (appData.team.length > 0) {
+                assigneeSelect.innerHTML = appData.team.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+            } else {
+                assigneeSelect.innerHTML = '<option value="-">-- Belum ada tim --</option>';
+            }
+
+            // Populate task dependency dropdown with category code prefix
+            const currentTaskId = document.getElementById('task-id')?.value || '';
+            const depSelect = document.getElementById('task-dependency');
+            depSelect.innerHTML = '<option value="">-- Tanpa Prasyarat --</option>' + 
+                appData.tasks
+                    .filter(t => t.id !== currentTaskId)
+                    .map(t => `<option value="${t.id}">[${t.categoryCode || 'KAT-01'}] ${t.title}</option>`).join('');
+
+            // Team list in collaboration panel
+            const teamContainer = document.getElementById('team-members-list');
+            teamContainer.innerHTML = appData.team.map(m => `
+                <div class="flex items-center space-x-3 p-2 hover:bg-slate-50 rounded-lg">
+                    <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs">
+                        ${m.name.charAt(0)}
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-800 leading-tight">${m.name}</p>
+                        <p class="text-[10px] text-slate-500">${m.role}</p>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-xs text-slate-400">Belum ada anggota tim.</p>';
+
+            // Use the project team database as the available chat identities
+            const chatSenderSelect = document.getElementById('chat-sender-select');
+            if (chatSenderSelect) {
+                chatSenderSelect.innerHTML = appData.team.length
+                    ? appData.team.map(member => `<option value="${member.id}">${member.name}</option>`).join('')
+                    : '<option value="">-- Tidak ada anggota --</option>';
+
+                if (currentUser) {
+                    chatSenderSelect.value = currentUser.id;
+                }
+            }
+        }
+
+        function initializeTaskCategories() {
+            const categorySelect = document.getElementById('task-category');
+            const defaultCategories = [
+                { code: 'KAT-01', name: 'Perencanaan & Lahan' },
+                { code: 'KAT-02', name: 'Pengadaan & Pembibitan' },
+                { code: 'KAT-03', name: 'Infrastruktur & Irigasi' },
+                { code: 'KAT-04', name: 'Pelatihan & SDM' },
+                { code: 'KAT-05', name: 'Panen & Pascapanen' }
+            ];
+
+            const categories = Array.isArray(appData.categories) && appData.categories.length
+                ? appData.categories
+                : defaultCategories;
+
+            appData.tasks.forEach(task => {
+                const code = task.categoryCode || 'KAT-01';
+                const name = task.categoryName || 'Perencanaan & Lahan';
+                if (!categories.some(category => category.code === code)) {
+                    categories.push({ code, name });
+                }
+            });
+            appData.categories = categories;
+            renderTaskCategoryOptions();
+        }
+
+        function renderTaskCategoryOptions(selectedValue = '') {
+            const categorySelect = document.getElementById('task-category');
+            categorySelect.innerHTML = appData.categories.map(category =>
+                `<option value="${category.code}|${category.name}">[${category.code}] ${category.name}</option>`
+            ).join('');
+            if (selectedValue && Array.from(categorySelect.options).some(option => option.value === selectedValue)) {
+                categorySelect.value = selectedValue;
+            }
+        }
+
+        function addTaskCategory() {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan menambah kategori.", "Akses Ditolak");
+                return;
+            }
+            const name = prompt('Nama kategori baru:');
+            if (name === null) return;
+            const newName = name.trim();
+            if (!newName || newName.includes('|')) {
+                showAlertModal('Nama kategori wajib diisi dan tidak boleh mengandung karakter |.', 'Kategori Tidak Valid');
+                return;
+            }
+
+            const usedNumbers = appData.categories
+                .map(category => Number((category.code.match(/(\d+)$/) || [])[1]))
+                .filter(Number.isFinite);
+            const nextNumber = Math.max(0, ...usedNumbers) + 1;
+            const code = `KAT-${String(nextNumber).padStart(2, '0')}`;
+            appData.categories.push({ code, name: newName });
+            renderTaskCategoryOptions(`${code}|${newName}`);
+            addLog(`Kategori kegiatan ditambahkan: [${code}] ${newName}`);
+        }
+
+        function deleteTaskCategory() {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan menghapus kategori.", "Akses Ditolak");
+                return;
+            }
+
+            const categorySelect = document.getElementById('task-category');
+            const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            if (!selectedOption) return;
+            if (appData.categories.length <= 1) {
+                showAlertModal('Minimal harus tersedia satu kategori kegiatan.', 'Kategori Tidak Dapat Dihapus');
+                return;
+            }
+
+            const [code, name] = selectedOption.value.split('|');
+            const replacementCategories = appData.categories.filter(category => category.code !== code);
+            const affectedTasks = appData.tasks.filter(task => (task.categoryCode || 'KAT-01') === code);
+            let replacement = null;
+
+            if (affectedTasks.length) {
+                const choices = replacementCategories.map(category => `${category.code}|${category.name}`).join(', ');
+                const replacementCode = prompt(`Kategori ini digunakan oleh ${affectedTasks.length} tugas. Masukkan kode kategori tujuan (${choices}):`, replacementCategories[0].code);
+                if (replacementCode === null) return;
+                replacement = replacementCategories.find(category => category.code === replacementCode.trim());
+                if (!replacement) {
+                    showAlertModal('Kode kategori tujuan tidak valid.', 'Kategori Tidak Valid');
+                    return;
+                }
+            }
+
+            showAlertModal(`Hapus kategori [${code}] ${name}?${affectedTasks.length ? ` ${affectedTasks.length} tugas akan dipindahkan ke [${replacement.code}] ${replacement.name}.` : ''}`, 'Konfirmasi Hapus Kategori', () => {
+                appData.categories = appData.categories.filter(category => category.code !== code);
+                if (replacement) {
+                    affectedTasks.forEach(task => {
+                        task.categoryCode = replacement.code;
+                        task.categoryName = replacement.name;
+                    });
+                }
+                renderTaskCategoryOptions();
+                addLog(`Kategori kegiatan dihapus: [${code}] ${name}`);
+                renderAllViews();
+            });
+        }
+
+        function editTaskCategory() {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan mengubah kategori.", "Akses Ditolak");
+                return;
+            }
+
+            const categorySelect = document.getElementById('task-category');
+            const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            if (!selectedOption) return;
+
+            const [oldCode, oldName] = selectedOption.value.split('|');
+            const code = prompt('Kode kategori:', oldCode);
+            if (code === null) return;
+            const name = prompt('Nama kategori:', oldName);
+            if (name === null) return;
+
+            const newCode = code.trim();
+            const newName = name.trim();
+            if (!newCode || !newName || newCode.includes('|') || newName.includes('|')) {
+                showAlertModal('Kode dan nama kategori wajib diisi dan tidak boleh mengandung karakter |.', 'Kategori Tidak Valid');
+                return;
+            }
+            if (appData.categories.some(category => category.code === newCode && category.code !== oldCode)) {
+                showAlertModal('Kode kategori tersebut sudah digunakan.', 'Kategori Tidak Valid');
+                return;
+            }
+
+            const category = appData.categories.find(item => item.code === oldCode);
+            if (!category) return;
+            category.code = newCode;
+            category.name = newName;
+            appData.tasks.forEach(task => {
+                if ((task.categoryCode || 'KAT-01') === oldCode) {
+                    task.categoryCode = newCode;
+                    task.categoryName = newName;
+                }
+            });
+
+            renderTaskCategoryOptions(`${newCode}|${newName}`);
+            addLog(`Kategori kegiatan diperbarui: [${newCode}] ${newName}`);
+            renderAllViews();
+        }
+
+        function openTaskModal() {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan menambah tugas baru.", "Akses Ditolak");
+                return;
+            }
+
+            document.getElementById('task-form').reset();
+            document.getElementById('task-id').value = '';
+            renderTaskCategoryOptions();
+            document.getElementById('task-modal-title').innerText = 'Tambah Tugas Baru';
+            populateDropdowns();
+            document.getElementById('task-modal').classList.remove('hidden');
+            document.getElementById('task-modal').classList.add('flex');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+            document.getElementById('task-modal').classList.remove('flex');
+            document.getElementById('task-form').reset();
+            document.getElementById('task-id').value = '';
+        }
+
+        function editTask(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan mengubah tugas.", "Akses Ditolak");
+                return;
+            }
+
+            const task = appData.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            document.getElementById('task-id').value = task.id;
+            populateDropdowns();
+
+            const catCode = task.categoryCode || 'KAT-01';
+            const catName = task.categoryName || 'Perencanaan & Lahan';
+            const categorySelect = document.getElementById('task-category');
+            
+            if (categorySelect) {
+                renderTaskCategoryOptions();
+                let matched = false;
+                for (let i = 0; i < categorySelect.options.length; i++) {
+                    const optVal = categorySelect.options[i].value;
+                    if (optVal === `${catCode}|${catName}` || optVal.startsWith(catCode + '|')) {
+                        categorySelect.selectedIndex = i;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched && categorySelect.options.length > 0) {
+                    categorySelect.selectedIndex = 0;
+                }
+            }
+
+            document.getElementById('task-title').value = task.title || '';
+            
+            const assigneeSelect = document.getElementById('task-assignee');
+            if (assigneeSelect && task.assignee) {
+                assigneeSelect.value = task.assignee;
+            }
+
+            document.getElementById('task-deadline').value = task.deadline || '';
+            document.getElementById('task-priority').value = task.priority || 'Sedang';
+            document.getElementById('task-status').value = task.status || 'Belum Dimulai';
+            
+            const depSelect = document.getElementById('task-dependency');
+            if (depSelect) {
+                depSelect.value = task.dependency || '';
+            }
+
+            document.getElementById('task-modal-title').innerText = 'Edit Tugas';
+            document.getElementById('task-modal').classList.remove('hidden');
+            document.getElementById('task-modal').classList.add('flex');
+        }
+
+        function deleteTask(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageTasks) {
+                showAlertModal("Peran Anda tidak diizinkan menghapus tugas.", "Akses Ditolak");
+                return;
+            }
+
+            const task = appData.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            showAlertModal(`Apakah Anda yakin ingin menghapus tugas "${task.title}"?`, 'Konfirmasi Hapus Tugas', () => {
+                appData.tasks = appData.tasks.filter(t => t.id !== id);
+                addLog(`Tugas dihapus: "${task.title}"`);
+                saveDataToStorage();
+                renderAllViews();
+            });
+        }
+
+        function renderTeamTable() {
+            const tbody = document.getElementById('team-table-body');
+            if (!tbody) return;
+
+            if (appData.team.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-xs text-center text-slate-400">Belum ada anggota tim terdaftar.</td></tr>';
+                return;
+            }
+
+            const canManageTeam = currentRoleConfig ? currentRoleConfig.canManageTeam : true;
+
+            tbody.innerHTML = appData.team.map(member => {
+                const activeTasksCount = appData.tasks.filter(t => t.assignee === member.name && t.status !== 'Selesai').length;
+                const roleConfig = getRoleConfig(member.role);
+
+                return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-4 font-semibold text-slate-800 flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs">
+                                ${member.name.charAt(0)}
+                            </div>
+                            <span>${member.name}</span>
+                        </td>
+                        <td class="p-4">
+                            <span class="text-xs font-semibold px-2.5 py-1 rounded border ${roleConfig.badgeClass}">
+                                ${member.role}
+                            </span>
+                        </td>
+                        <td class="p-4">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                activeTasksCount > 0 ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                            }">${activeTasksCount} Tugas Aktif</span>
+                        </td>
+                        <td class="p-4 text-center space-x-2">
+                            ${canManageTeam ? `
+                                <button onclick="editTeamMember('${member.id}')" class="text-slate-400 hover:text-emerald-600" title="Edit Anggota & Set Password"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteTeamMember('${member.id}')" class="text-slate-400 hover:text-red-600" title="Hapus Anggota"><i class="fa-solid fa-trash"></i></button>
+                            ` : '<span class="text-xs text-slate-300 italic">Dibatasi</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openTeamModal() {
+            if (currentRoleConfig && !currentRoleConfig.canManageTeam) {
+                showAlertModal("Hanya Project Manager yang diizinkan menambah data SDM baru.", "Akses Ditolak (RBAC)");
+                return;
+            }
+
+            document.getElementById('team-form').reset();
+            document.getElementById('team-id').value = '';
+            document.getElementById('team-password').value = '';
+            document.getElementById('team-pass-label').innerText = 'Kata Sandi Awal (Password)';
+            document.getElementById('team-modal-title').innerText = 'Tambah Anggota Tim Baru';
+            document.getElementById('team-modal').classList.remove('hidden');
+            document.getElementById('team-modal').classList.add('flex');
+        }
+
+        function closeTeamModal() {
+            document.getElementById('team-modal').classList.add('hidden');
+            document.getElementById('team-modal').classList.remove('flex');
+        }
+
+        function handleSaveTeam(e) {
+            e.preventDefault();
+            if (currentRoleConfig && !currentRoleConfig.canManageTeam) {
+                showAlertModal("Peran Anda tidak memiliki izin mengelola data SDM.", "Akses Ditolak");
+                return;
+            }
+
+            const id = document.getElementById('team-id').value;
+            const name = document.getElementById('team-name').value.trim();
+            const role = document.getElementById('team-role-select').value;
+            const passwordInput = document.getElementById('team-password').value.trim();
+
+            if (!name || !role) return;
+
+            if (id) {
+                const idx = appData.team.findIndex(m => m.id === id);
+                if (idx !== -1) {
+                    const oldName = appData.team[idx].name;
+                    appData.team[idx].name = name;
+                    appData.team[idx].role = role;
+
+                    if (passwordInput) {
+                        appData.team[idx].password = passwordInput;
+                    }
+                    
+                    if (oldName !== name) {
+                        appData.tasks.forEach(t => {
+                            if (t.assignee === oldName) t.assignee = name;
+                        });
+                    }
+                    addLog(`Data anggota tim diperbarui: ${name} (${role})`);
+                }
+            } else {
+                const newMember = {
+                    id: 'tm-' + Date.now(),
+                    name,
+                    role,
+                    password: passwordInput || DEFAULT_USER_PASSWORD
+                };
+                appData.team.push(newMember);
+                addLog(`Anggota tim baru ditambahkan: ${name} (${role})`);
+            }
+
+            saveDataToStorage();
+            closeTeamModal();
+            initializeLogin();
+            populateDropdowns();
+            renderAllViews();
+        }
+
+        function editTeamMember(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageTeam) {
+                showAlertModal("Hanya Project Manager yang diizinkan mengubah data SDM.", "Akses Ditolak");
+                return;
+            }
+
+            const member = appData.team.find(m => m.id === id);
+            if (!member) return;
+
+            document.getElementById('team-id').value = member.id;
+            document.getElementById('team-name').value = member.name;
+            document.getElementById('team-role-select').value = member.role;
+            document.getElementById('team-password').value = '';
+            document.getElementById('team-pass-label').innerText = 'Reset Kata Sandi Pengguna (Opsional)';
+
+            document.getElementById('team-modal-title').innerText = 'Edit Anggota Tim & Password';
+            document.getElementById('team-modal').classList.remove('hidden');
+            document.getElementById('team-modal').classList.add('flex');
+        }
+
+        function deleteTeamMember(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageTeam) {
+                showAlertModal("Hanya Project Manager yang diizinkan menghapus data SDM.", "Akses Ditolak");
+                return;
+            }
+
+            const member = appData.team.find(m => m.id === id);
+            if (!member) return;
+
+            showAlertModal(`Apakah Anda yakin ingin menghapus "${member.name}" dari tim proyek?`, 'Konfirmasi Hapus Anggota', () => {
+                appData.team = appData.team.filter(m => m.id !== id);
+                addLog(`Anggota tim dihapus: ${member.name}`);
+                saveDataToStorage();
+                initializeLogin();
+                populateDropdowns();
+                renderAllViews();
+            });
+        }
+
+        function renderChat() {
+            const chatBox = document.getElementById('chat-messages');
+            const currentSender = currentUser;
+
+            chatBox.innerHTML = appData.chat.map(msg => {
+                const sender = appData.team.find(member => member.id === msg.senderId)?.name || msg.sender;
+                const isCurrentSender = msg.senderId
+                    ? msg.senderId === currentSender?.id
+                    : sender === currentSender?.name;
+
+                return `
+                <div class="flex flex-col ${isCurrentSender ? 'items-end' : 'items-start'}">
+                    <div class="flex items-center space-x-1 mb-1">
+                        <span class="text-[11px] font-semibold text-slate-700">${sender}</span>
+                        <span class="text-[10px] text-slate-400">${msg.time}</span>
+                    </div>
+                    <div class="max-w-md px-4 py-2.5 rounded-2xl text-xs ${
+                        isCurrentSender ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-sm'
+                    }">
+                        ${msg.message}
+                    </div>
+                </div>
+            `;
+            }).join('');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function canManageAnnouncements() {
+            return currentRoleConfig ? currentRoleConfig.canAnnounce : true;
+        }
+
+        function renderAnnouncements() {
+            const container = document.getElementById('announcements-list');
+            const addButton = document.getElementById('add-announcement-btn');
+            if (!container || !addButton) return;
+
+            const canManage = canManageAnnouncements();
+            addButton.classList.toggle('hidden', !canManage);
+            
+            container.innerHTML = (appData.announcements || []).map((announcement, index) => `
+                <div class="p-3 ${index % 2 === 0 ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-blue-50 border-blue-200 text-blue-900'} border rounded-lg text-xs">
+                    <div class="flex justify-between items-start gap-2">
+                        <p class="font-semibold mb-1">${escapeHTML(announcement.title)}</p>
+                        ${canManage ? `<div class="flex gap-2 shrink-0">
+                            <button type="button" onclick="editAnnouncement('${announcement.id}')" class="hover:opacity-70" aria-label="Ubah pengumuman"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" onclick="deleteAnnouncement('${announcement.id}')" class="hover:opacity-70" aria-label="Hapus pengumuman"><i class="fa-solid fa-trash"></i></button>
+                        </div>` : ''}
+                    </div>
+                    <p>${escapeHTML(announcement.message)}</p>
+                </div>
+            `).join('') || '<p class="text-xs text-slate-400">Belum ada pengumuman.</p>';
+        }
+
+        function escapeHTML(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[char]);
+        }
+
+        function addAnnouncement() {
+            if (!canManageAnnouncements()) {
+                showAlertModal("Peran Anda tidak diizinkan menambah pengumuman.", "Akses Ditolak");
+                return;
+            }
+            const title = prompt('Judul pengumuman:');
+            if (title === null) return;
+            const message = prompt('Isi pengumuman:');
+            if (message === null) return;
+            if (!title.trim() || !message.trim()) {
+                showAlertModal('Judul dan isi pengumuman wajib diisi.', 'Pengumuman Tidak Valid');
+                return;
+            }
+            appData.announcements.push({ id: 'ann-' + Date.now(), title: title.trim(), message: message.trim() });
+            addLog(`Pengumuman ditambahkan: ${title.trim()}`);
+            saveDataToStorage();
+            renderAnnouncements();
+        }
+
+        function editAnnouncement(id) {
+            if (!canManageAnnouncements()) return;
+            const announcement = appData.announcements.find(item => item.id === id);
+            if (!announcement) return;
+            const title = prompt('Ubah judul pengumuman:', announcement.title);
+            if (title === null) return;
+            const message = prompt('Ubah isi pengumuman:', announcement.message);
+            if (message === null) return;
+            if (!title.trim() || !message.trim()) {
+                showAlertModal('Judul dan isi pengumuman wajib diisi.', 'Pengumuman Tidak Valid');
+                return;
+            }
+            announcement.title = title.trim();
+            announcement.message = message.trim();
+            addLog(`Pengumuman diperbarui: ${announcement.title}`);
+            saveDataToStorage();
+            renderAnnouncements();
+        }
+
+        function deleteAnnouncement(id) {
+            if (!canManageAnnouncements()) return;
+            const announcement = appData.announcements.find(item => item.id === id);
+            if (!announcement) return;
+            showAlertModal(`Hapus pengumuman "${announcement.title}"?`, 'Konfirmasi Hapus Pengumuman', () => {
+                appData.announcements = appData.announcements.filter(item => item.id !== id);
+                addLog(`Pengumuman dihapus: ${announcement.title}`);
+                saveDataToStorage();
+                renderAnnouncements();
+            });
+        }
+
+        function handleSendChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+            const senderId = document.getElementById('chat-sender-select').value;
+            const sender = appData.team.find(member => member.id === senderId);
+            if (!sender) return;
+
+            const now = new Date();
+            const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            appData.chat.push({
+                id: 'c-' + Date.now(),
+                senderId: sender.id,
+                sender: sender.name,
+                message,
+                time
+            });
+
+            saveDataToStorage();
+            input.value = '';
+            renderChat();
+        }
+
+        function renderDocuments() {
+            const search = document.getElementById('doc-search').value.toLowerCase();
+            const filtered = appData.documents.filter(doc => 
+                doc.title.toLowerCase().includes(search) || 
+                doc.summary.toLowerCase().includes(search) ||
+                doc.category.toLowerCase().includes(search)
+            );
+
+            const grid = document.getElementById('knowledge-grid');
+            const canManageDocs = currentRoleConfig ? currentRoleConfig.canManageDocs : true;
+
+            grid.innerHTML = filtered.map(doc => `
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-emerald-300 transition-colors">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-[10px] font-bold uppercase px-2.5 py-1 rounded bg-slate-100 text-slate-600 border border-slate-200">${doc.category}</span>
+                            <span class="text-[11px] text-slate-400">${doc.date}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-sm mb-2">${doc.title}</h4>
+                        <p class="text-xs text-slate-500 line-clamp-3 mb-4">${doc.summary}</p>
+                    </div>
+                    <div class="pt-3 border-t border-slate-100 flex justify-between items-center">
+                        <a href="${doc.url || '#'}" target="_blank" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                            <i class="fa-solid fa-file-arrow-down"></i> Buka / Unduh
+                        </a>
+                        ${canManageDocs ? `<button onclick="deleteDoc('${doc.id}')" class="text-slate-400 hover:text-red-500 text-xs"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                </div>
+            `).join('') || '<p class="text-xs text-slate-400 col-span-3">Tidak ditemukan dokumen.</p>';
+        }
+
+        function openDocModal() {
+            if (currentRoleConfig && !currentRoleConfig.canManageDocs) {
+                showAlertModal("Peran Anda tidak diizinkan menambah dokumen.", "Akses Ditolak");
+                return;
+            }
+            document.getElementById('doc-form').reset();
+            document.getElementById('doc-modal').classList.remove('hidden');
+            document.getElementById('doc-modal').classList.add('flex');
+        }
+
+        function closeDocModal() {
+            document.getElementById('doc-modal').classList.add('hidden');
+            document.getElementById('doc-modal').classList.remove('flex');
+        }
+
+        function handleSaveDoc(e) {
+            e.preventDefault();
+            if (currentRoleConfig && !currentRoleConfig.canManageDocs) {
+                showAlertModal("Peran Anda tidak diizinkan menambah dokumen.", "Akses Ditolak");
+                return;
+            }
+
+            const title = document.getElementById('doc-title').value;
+            const category = document.getElementById('doc-category').value;
+            const summary = document.getElementById('doc-summary').value;
+            const url = document.getElementById('doc-url').value;
+
+            const now = new Date();
+            const date = now.toISOString().slice(0, 10);
+
+            appData.documents.push({
+                id: 'doc-' + Date.now(),
+                title, category, summary, url, date
+            });
+
+            addLog(`Dokumen baru diunggah: "${title}"`);
+            saveDataToStorage();
+            closeDocModal();
+            renderDocuments();
+        }
+
+        function deleteDoc(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageDocs) {
+                showAlertModal("Peran Anda tidak diizinkan menghapus dokumen.", "Akses Ditolak");
+                return;
+            }
+
+            showAlertModal("Apakah Anda yakin ingin menghapus dokumen ini?", "Konfirmasi Hapus Dokumen", () => {
+                appData.documents = appData.documents.filter(d => d.id !== id);
+                saveDataToStorage();
+                renderDocuments();
+            });
+        }
+
+        function updateCategoryOptions() {
+            const typeVal = document.querySelector('input[name="budget-type"]:checked')?.value || 'PEMASUKAN';
+            const catSelect = document.getElementById('budget-category');
+            
+            if (typeVal === 'PEMASUKAN') {
+                catSelect.innerHTML = `
+                    <option value="Modal / Investor">Modal / Pendanaan Investor</option>
+                    <option value="Hibah / Bantuan">Hibah / Bantuan Pemerintah/Lembaga</option>
+                    <option value="Hasil Penjualan / Produk">Hasil Penjualan Nira/Gula/Produk</option>
+                    <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
+                `;
+            } else {
+                catSelect.innerHTML = `
+                    <option value="Peralatan & Bibit">Peralatan & Bibit Aren</option>
+                    <option value="Operasional Lapangan">Operasional Lapangan</option>
+                    <option value="Tenaga Kerja">Tenaga Kerja / SDM</option>
+                    <option value="Logistik & Transport">Logistik & Transport</option>
+                    <option value="Pengeluaran Lainnya">Pengeluaran Lainnya</option>
+                `;
+            }
+        }
+
+        function renderBudgets() {
+            const totalIncome = appData.budgets.filter(b => b.type === 'PEMASUKAN').reduce((sum, item) => sum + Number(item.amount), 0);
+            const totalSpent = appData.budgets.filter(b => b.type === 'PENGELUARAN' || !b.type).reduce((sum, item) => sum + Number(item.amount), 0);
+            const netCash = totalIncome - totalSpent;
+
+            document.getElementById('budget-income-text').innerText = formatRupiah(totalIncome);
+            document.getElementById('budget-spent-text').innerText = formatRupiah(totalSpent);
+            document.getElementById('budget-remaining-text').innerText = formatRupiah(netCash);
+            document.getElementById('budget-percentage-text').innerText = `Total Realisasi Biaya Lapangan`;
+
+            const tbody = document.getElementById('budget-table-body');
+            const canManageBudget = currentRoleConfig ? currentRoleConfig.canManageBudget : true;
+
+            tbody.innerHTML = appData.budgets.map(b => {
+                const isIncome = b.type === 'PEMASUKAN';
+                return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isIncome ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }">
+                                ${isIncome ? '<i class="fa-solid fa-arrow-down mr-1"></i>Masuk' : '<i class="fa-solid fa-arrow-up mr-1"></i>Keluar'}
+                            </span>
+                        </td>
+                        <td class="p-3 text-xs font-semibold text-slate-700">${b.category}</td>
+                        <td class="p-3 text-slate-800 font-medium">${b.title}</td>
+                        <td class="p-3 font-semibold ${isIncome ? 'text-emerald-600' : 'text-slate-900'}">
+                            ${isIncome ? '+' : '-'}${formatRupiah(b.amount)}
+                        </td>
+                        <td class="p-3 text-xs text-slate-500">${b.date}</td>
+                        <td class="p-3 text-center">
+                            ${b.proof ? `<a href="${escapeHTML(b.proof)}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-700 mr-2" title="Lihat bukti transaksi"><i class="fa-solid fa-image"></i></a>` : ''}
+                            ${canManageBudget ? `<button onclick="deleteBudget('${b.id}')" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-slate-300 italic">-</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('') || '<tr><td colspan="6" class="p-4 text-xs text-center text-slate-400">Belum ada catatan transaksi arus kas.</td></tr>';
+        }
+
+        async function handleSaveBudget(e) {
+            e.preventDefault();
+            if (currentRoleConfig && !currentRoleConfig.canManageBudget) {
+                showAlertModal("Peran Anda tidak diizinkan mencatat transaksi keuangan.", "Akses Ditolak (RBAC)");
+                return;
+            }
+
+            const type = document.querySelector('input[name="budget-type"]:checked').value;
+            const title = document.getElementById('budget-title').value;
+            const category = document.getElementById('budget-category').value;
+            const amount = Number(document.getElementById('budget-amount').value);
+            const date = document.getElementById('budget-date').value;
+            const proofFile = document.getElementById('budget-proof').files[0] || document.getElementById('budget-proof-camera').files[0];
+            let proof = '';
+
+            if (proofFile) {
+                if (!proofFile.type.startsWith('image/')) {
+                    showAlertModal('Bukti transaksi harus berupa file gambar.', 'Format Bukti Tidak Valid');
+                    return;
+                }
+                if (proofFile.size > 1024 * 1024) {
+                    showAlertModal('Ukuran gambar bukti transaksi maksimal 1 MB.', 'Ukuran File Terlalu Besar');
+                    return;
+                }
+                try {
+                    proof = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Gagal membaca gambar'));
+                        reader.readAsDataURL(proofFile);
+                    });
+                } catch (error) {
+                    showAlertModal('Gambar bukti transaksi gagal dibaca. Silakan pilih gambar lain.', 'Upload Bukti Gagal');
+                    return;
+                }
+            }
+
+            appData.budgets.push({
+                id: 'b-' + Date.now(),
+                type, title, category, amount, date, proof
+            });
+
+            addLog(`Transaksi Arus Kas (${type}): ${title} (${formatRupiah(amount)})`);
+            saveDataToStorage();
+            document.getElementById('budget-form').reset();
+            updateCategoryOptions();
+            renderAllViews();
+        }
+
+        function deleteBudget(id) {
+            if (currentRoleConfig && !currentRoleConfig.canManageBudget) {
+                showAlertModal("Peran Anda tidak diizinkan menghapus transaksi keuangan.", "Akses Ditolak");
+                return;
+            }
+
+            showAlertModal("Hapus catatan transaksi ini?", "Konfirmasi Hapus Transaksi", () => {
+                appData.budgets = appData.budgets.filter(b => b.id !== id);
+                saveDataToStorage();
+                renderAllViews();
+            });
+        }
+
+        function initCharts() {
+            // Task Status Pie Chart
+            const ctxStatus = document.getElementById('taskStatusChart').getContext('2d');
+            statusChartInstance = new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Belum Dimulai', 'Dalam Proses', 'Selesai'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#cbd5e1', '#3b82f6', '#16a34a'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // Budget / Cash Flow Column Chart
+            const ctxBudget = document.getElementById('budgetChart').getContext('2d');
+            budgetChartInstance = new Chart(ctxBudget, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Pemasukan', 'Total Pengeluaran', 'Saldo Akhir (Cash Flow)'],
+                    datasets: [{
+                        label: 'Nominal (Rp)',
+                        data: [0, 0, 0],
+                        backgroundColor: ['#16a34a', '#dc2626', '#0284c7'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + (value/1000000) + ' Jt';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            updateCharts();
+        }
+
+        function updateCharts() {
+            if (!statusChartInstance || !budgetChartInstance) return;
+
+            // Update Task Status Chart
+            const notStarted = appData.tasks.filter(t => t.status === 'Belum Dimulai').length;
+            const inProgress = appData.tasks.filter(t => t.status === 'Dalam Proses').length;
+            const completed = appData.tasks.filter(t => t.status === 'Selesai').length;
+
+            statusChartInstance.data.datasets[0].data = [notStarted, inProgress, completed];
+            statusChartInstance.update();
+
+            // Update Cash Flow Chart
+            const totalIncome = appData.budgets.filter(b => b.type === 'PEMASUKAN').reduce((sum, item) => sum + Number(item.amount), 0);
+            const totalSpent = appData.budgets.filter(b => b.type === 'PENGELUARAN' || !b.type).reduce((sum, item) => sum + Number(item.amount), 0);
+            const netCash = totalIncome - totalSpent;
+
+            budgetChartInstance.data.datasets[0].data = [totalIncome, totalSpent, netCash];
+            budgetChartInstance.update();
+        }
+
+        // Initialize application when DOM is loaded
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
